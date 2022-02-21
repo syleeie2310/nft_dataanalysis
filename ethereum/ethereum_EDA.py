@@ -240,6 +240,20 @@ total.describe(include='all')
 
 # COMMAND ----------
 
+# Databricks display dataprofiling
+total1 = total.copy()
+# index를 못잡아서 새로 칼럼을 만들어줌
+total1['index'] = total1.index
+# 칼럼명 수정 : data file 오류남, index를 자동으로 잡는 듯
+total1.rename(columns = {'verifiedContracts_No. of Verified Contracts':'verifiedContracts_No of Verified Contracts'}, inplace=True)
+display(total1)
+
+# COMMAND ----------
+
+stop
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## 그래프 시각화 분석
 
