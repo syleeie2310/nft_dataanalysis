@@ -94,7 +94,7 @@ for i in range(len(data_list)):
 
 # COMMAND ----------
 
-# 24개 데이터 통합
+#  데이터 통합
 total = data_list[0]
 for i in range(1, len(data_list)):
     total = pd.merge(total, data_list[i], left_index=True, right_index=True, how='left')
@@ -157,6 +157,11 @@ total['BlockCountRewards_Value'] = total['BlockCountRewards_Value'].astype('floa
 rmcol = ['AverageDailyTransactionFee_Average Txn Fee (Ether)', 'MarketCap_Supply', 'MarketCap_Price']
 for i in range(len(rmcol)):
     total.drop(columns=rmcol[i], inplace=True)
+
+# COMMAND ----------
+
+# 칼럼명 수정 : display메서드 data profile 오류남, index를 자동으로 잡는 듯
+total.rename(columns = {'verifiedContracts_No. of Verified Contracts':'verifiedContracts_No of Verified Contracts'}, inplace=True)
 
 # COMMAND ----------
 
@@ -240,17 +245,22 @@ total.describe(include='all')
 
 # COMMAND ----------
 
-# Databricks display dataprofiling
-total1 = total.copy()
-# index를 못잡아서 새로 칼럼을 만들어줌
-total1['index'] = total1.index
-# 칼럼명 수정 : data file 오류남, index를 자동으로 잡는 듯
-total1.rename(columns = {'verifiedContracts_No. of Verified Contracts':'verifiedContracts_No of Verified Contracts'}, inplace=True)
-display(total1)
+# MAGIC %md
+# MAGIC ### Data Profiling
 
 # COMMAND ----------
 
-stop
+# index를 추가해서 display메서드를 실행하는 함수
+# display 메서드가 index를 인식 못함... 그렇다고 넣어두기에 뒤에 전처리에 계속 걸리적 거림, 변수 분리해서 관리하기로 번거로움
+def dp(data):
+    temp = data.copy()
+    temp['index'] = data.index
+    display(temp)
+
+# COMMAND ----------
+
+# log 처리 안된 raw data 
+dp(total)
 
 # COMMAND ----------
 
@@ -299,7 +309,7 @@ def line_plot(data):
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.show()
 
-line_plot(total)
+line_plot(total) 
 
 # COMMAND ----------
 
@@ -349,12 +359,13 @@ heatmap_plot(total)
 
 # COMMAND ----------
 
-sb.pairplot(total)
+# sb.pairplot(total)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 4. 데이터 정규화
+# MAGIC # 4. 데이터 정규화(ver1)
+# MAGIC - 이상치를 함부로 대체하면 안됨, 로그 변환 필요, ver2에서 새로 정규화
 
 # COMMAND ----------
 
@@ -395,85 +406,85 @@ sb.pairplot(total)
 
 # COMMAND ----------
 
-# 데이터 카피
-total_outlier = total.copy()
-total_outlier
+# # 데이터 카피
+# total_outlier = total.copy()
+# total_outlier
 
 # COMMAND ----------
 
-# 상한이나 하한 기준을 넘는 값의 인덱스를 리턴하는 함수
-upper_index = []
-def outliers_iqr(data):
-    q1, q3 = np.percentile(data, [25, 75])
-    # 넘파이 값을 퍼센트로 표시해주는 함수
-    iqr = q3 - q1
-    lower_bound = q1 -(iqr*1.5)
-    upper_bound = q3 +(iqr*1.5)
-    index = np.where((data>upper_bound) | (data<lower_bound))
-    return lower_bound, upper_bound, index[0]
+# # 상한이나 하한 기준을 넘는 값의 인덱스를 리턴하는 함수
+# upper_index = []
+# def outliers_iqr(data):
+#     q1, q3 = np.percentile(data, [25, 75])
+#     # 넘파이 값을 퍼센트로 표시해주는 함수
+#     iqr = q3 - q1
+#     lower_bound = q1 -(iqr*1.5)
+#     upper_bound = q3 +(iqr*1.5)
+#     index = np.where((data>upper_bound) | (data<lower_bound))
+#     return lower_bound, upper_bound, index[0]
 
 # COMMAND ----------
 
-outliers_iqr(total_outlier['AvgGasPrice_Value (Wei)'])
+# outliers_iqr(total_outlier['AvgGasPrice_Value (Wei)'])
 
 # COMMAND ----------
 
-# 칼럼별 이상치 현황 체크
-def outlier_check(data):
-    outlier_index_all= []
-    outlier_col = []
-    for col in data.columns:
-        lb, ub, oi = outliers_iqr(data[col])
-        # 아웃라이어가 존재하는 칼럼 분류
-        if len(oi) != 0:  
-            outlier_col.append(col)
-            print(f'{col}, 이상치 수={len(oi)}, 이상치 비율={"%0.1f%%"%(len(oi)/len(data[col])*100)}')
-            print(f'상한값={ub}, 하한값={lb}')
-            print(f'이상치 위치 출력 = {data[col][oi]}')
-    #         print(f'상한값={ub}, 하한값={lb}, 이상치 인덱스={oi}')
-            print('='*100)
-        else : 
-            print(f'{col} = 이상치 없음')
-            print('='*100)
-        outlier_index_all.append(oi)
-    # print(f'모든 칼럼의 인덱스 리스트 = \n {outlier_index_all}')
-    print(f'아웃라이어 있는 칼럼 = {outlier_col}, {len(outlier_col)}')
-    return outlier_index_all, outlier_col
+# # 칼럼별 이상치 현황 체크
+# def outlier_check(data):
+#     outlier_index_all= []
+#     outlier_col = []
+#     for col in data.columns:
+#         lb, ub, oi = outliers_iqr(data[col])
+#         # 아웃라이어가 존재하는 칼럼 분류
+#         if len(oi) != 0:  
+#             outlier_col.append(col)
+#             print(f'{col}, 이상치 수={len(oi)}, 이상치 비율={"%0.1f%%"%(len(oi)/len(data[col])*100)}')
+#             print(f'상한값={ub}, 하한값={lb}')
+#             print(f'이상치 위치 출력 = {data[col][oi]}')
+#     #         print(f'상한값={ub}, 하한값={lb}, 이상치 인덱스={oi}')
+#             print('='*100)
+#         else : 
+#             print(f'{col} = 이상치 없음')
+#             print('='*100)
+#         outlier_index_all.append(oi)
+#     # print(f'모든 칼럼의 인덱스 리스트 = \n {outlier_index_all}')
+#     print(f'아웃라이어 있는 칼럼 = {outlier_col}, {len(outlier_col)}')
+#     return outlier_index_all, outlier_col
 
-outlier_index_all, outlier_col = outlier_check(total_outlier)
-
-# COMMAND ----------
-
-# 전체 인덱스를 합쳐서, 각 칼럼별로 몇개가 중복되는지 비중을 체크해보자
-# 전체 인덱스 3850개 중  1368개가 중복됨, 음 전체 데이터에서 비중은 심각하진 않은 것 같기도 하고.. ㅜ
-concat_outlier_index = np.concatenate(outlier_index_all, axis=None)
-print(concat_outlier_index)
-print(f'전체 인덱스 수 = {len(concat_outlier_index)}, 고유 인덱스 수 = { len(set(concat_outlier_index))}')
-print(f'전체 데이터 레코드 수 대비 이상치 비율 = {((1-(total.size-len(concat_outlier_index)) / total.size)) * 100}')
+# outlier_index_all, outlier_col = outlier_check(total_outlier)
 
 # COMMAND ----------
 
-# 이상치를 상한|하한값으로 변경
-# np.where와 인덱스가 맞지 않아서.. 일일이 체크해서 바꿔줘야함..
-for col in outlier_col:
-    lb, ub, oi = outliers_iqr(total_outlier[col])
-    print(col)
-    for i in oi:
-        if total_outlier[col][i] > ub:
-            total_outlier[col][i] = ub
-        elif total_outlier[col][i] < lb:
-            total_outlier[col][i] = lb
-        else :
-            continue
+# # 전체 인덱스를 합쳐서, 각 칼럼별로 몇개가 중복되는지 비중을 체크해보자
+# # 전체 인덱스 3850개 중  1368개가 중복됨, 음 전체 데이터에서 비중은 심각하진 않은 것 같기도 하고.. ㅜ
+# concat_outlier_index = np.concatenate(outlier_index_all, axis=None)
+# print(concat_outlier_index)
+# print(f'전체 인덱스 수 = {len(concat_outlier_index)}, 고유 인덱스 수 = { len(set(concat_outlier_index))}')
+# print(f'전체 데이터 레코드 수 대비 이상치 비율 = {((1-(total_outlier.size-len(concat_outlier_index)) / total_outlier.size)) * 100}')
+
+# COMMAND ----------
+
+# # 이상치를 상한|하한값으로 변경
+# # np.where와 인덱스가 맞지 않아서.. 일일이 체크해서 바꿔줘야함..
+# for col in outlier_col:
+#     lb, ub, oi = outliers_iqr(total_outlier[col])
+#     print(col)
+#     for i in oi:
+#         if total_outlier[col][i] > ub:
+#             total_outlier[col][i] = ub
+#         elif total_outlier[col][i] < lb:
+#             total_outlier[col][i] = lb
+#         else :
+#             continue
             
-# np.where 실패
-#     np.where(total_outlier[col][oi] > ub, ub,
-#              np.where(total_outlier[col][oi] < lb, lb, total_outlier[col][oi]))    
+# # np.where 실패
+# #     np.where(total_outlier[col][oi] > ub, ub,
+# #              np.where(total_outlier[col][oi] < lb, lb, total_outlier[col][oi]))    
 
 # COMMAND ----------
 
-# 잘 바꼈는지 체크
-outlier_index_all, outlier_col = outlier_check(total_outlier)
+# # 잘 바꼈는지 체크
+# outlier_index_all, outlier_col = outlier_check(total_outlier)
 
 # COMMAND ----------
 
@@ -482,7 +493,7 @@ outlier_index_all, outlier_col = outlier_check(total_outlier)
 
 # COMMAND ----------
 
-box_plot(total_outlier)
+# box_plot(total_outlier)
 
 # COMMAND ----------
 
@@ -493,18 +504,18 @@ box_plot(total_outlier)
 
 # COMMAND ----------
 
-# ENS와 burnt fee 피처 제외, 새 변수 만들기
-total_scaled = total_outlier.copy()
-total_scaled.drop(columns=['EnsRegistrations_Value', 'DailyEthBurnt_BurntFees'], inplace=True)
-total_scaled.head()
+# # ENS와 burnt fee 피처 제외, 새 변수 만들기
+# total_scaled = total_outlier.copy()
+# total_scaled.drop(columns=['EnsRegistrations_Value', 'DailyEthBurnt_BurntFees'], inplace=True)
+# total_scaled.head()
 
 # COMMAND ----------
 
-from sklearn.preprocessing import MinMaxScaler
-minmax_scaler = MinMaxScaler()
-total_scaled.iloc[:,:] = minmax_scaler.fit_transform(total_scaled.iloc[:,:])
-print(total_scaled.shape)
-print(total_scaled)
+# from sklearn.preprocessing import MinMaxScaler
+# minmax_scaler = MinMaxScaler()
+# total_scaled.iloc[:,:] = minmax_scaler.fit_transform(total_scaled.iloc[:,:])
+# print(total_scaled.shape)
+# print(total_scaled)
 
 # COMMAND ----------
 
@@ -513,7 +524,7 @@ print(total_scaled)
 
 # COMMAND ----------
 
-line_plot(total_scaled)
+# line_plot(total_scaled)
 
 # COMMAND ----------
 
@@ -527,7 +538,7 @@ line_plot(total_scaled)
 
 # COMMAND ----------
 
-heatmap_plot(total_scaled)
+# heatmap_plot(total_scaled)
 
 # COMMAND ----------
 
@@ -536,12 +547,183 @@ heatmap_plot(total_scaled)
 
 # COMMAND ----------
 
-sb.pairplot(total_scaled)
+# sb.pairplot(total_scaled)
 
 # COMMAND ----------
 
-차원축소가 유의미 할지 모르겠음
-피처들을 기준에 따라 그루핑해서 분석해야 할 듯
+# MAGIC %md
+# MAGIC # 피처 추가 : 변동수가 일정하여 분석이 무의미함
+# MAGIC - 파생 피처 : 블록 카운트 = BlockCountRewards_Value 일일 이더리움 블록 생성 수(보상 데이터 미포함)를 누적합
+
+# COMMAND ----------
+
+# total['BlockCount_AccumulateValue'] = total['BlockCountRewards_Value'].cumsum()
+# total
+
+# COMMAND ----------
+
+# dp(total)
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 4. 데이터 정규화(ver2)
+# MAGIC - 이상치 보존, log변환 추가
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 로그 변환
+
+# COMMAND ----------
+
+# log10 변환, 결과는 log, log1p와 동일
+total_log = total.copy()
+total_log = np.log1p(total_log)
+dp(total_log)
+
+# log 변환
+# dp_total1_log = dp_total1.copy()
+# dp_total1_log.iloc[:,:-1]= np.log1p(dp_total1_log.iloc[:,:-1])
+# display(dp_total1_log)
+
+# log1p 변환
+# dp_total1_log1p = dp_total1.copy()
+# dp_total1_log1p.iloc[:,:-1]= np.log1p(dp_total1_log1p.iloc[:,:-1])
+# display(dp_total1_log1p)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 스케일링
+
+# COMMAND ----------
+
+total_log_scaled = total_log.copy()
+total_log_scaled.head()
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+from sklearn.preprocessing import MinMaxScaler
+minmax_scaler = MinMaxScaler()
+total_log_scaled.iloc[:,:] = minmax_scaler.fit_transform(total_log_scaled)
+total_log_scaled
+
+# COMMAND ----------
+
+dp(total_log_scaled)
+
+# COMMAND ----------
+
+dp(total_log_scaled)
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 인터렉티브 시각화
+
+# COMMAND ----------
+
+!pip install dash
+
+# COMMAND ----------
+
+!pip install Jinja2
+
+# COMMAND ----------
+
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+from dash.dependencies import Input, Output
+import plotly.express as px
+
+df = px.data.gapminder()
+all_continents = df.continent.unique()
+
+app = dash.Dash(__name__)
+
+app.layout = html.Div([
+    dcc.Checklist(
+        id="checklist",
+        options=[{"label": x, "value": x} 
+                 for x in all_continents],
+        value=all_continents[3:],
+        labelStyle={'display': 'inline-block'}
+    ),
+    dcc.Graph(id="line-chart"),
+])
+
+@app.callback(
+    Output("line-chart", "figure"), 
+    [Input("checklist", "value")])
+def update_line_chart(continents):
+    mask = df.continent.isin(continents)
+    fig = px.line(df[mask], 
+        x="year", y="lifeExp", color='country')
+    return fig
+
+app.run_server(debug=True)
+
+# COMMAND ----------
+
+from plotly.offline import plot
+from plotly.graph_objs import *
+import numpy as np
+ 
+x = np.random.randn(2000)
+y = np.random.randn(2000)
+ 
+# Instead of simply calling plot(...), store your plot as a variable and pass it to displayHTML().
+# Make sure to specify output_type='div' as a keyword argument.
+# (Note that if you call displayHTML() multiple times in the same cell, only the last will take effect.)
+ 
+p = plot(
+  [
+    Histogram2dContour(x=x, y=y, contours=Contours(coloring='heatmap')),
+    Scatter(x=x, y=y, mode='markers', marker=Marker(color='white', size=3, opacity=0.3))
+  ],
+  output_type='div'
+)
+ 
+displayHTML(p)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 5. 데이터 해석
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 히스토리 파악
+# MAGIC - 블록발행 추이를 통해 히스토리를 파악해보자
+# MAGIC - [이더리움 블록체인 히스토리](https://docs.google.com/document/d/1vwo9mGp6ACt2Ips8tyqH2xu-xBD9tfKDnVPn39NTnKw/edit)
+# MAGIC -> 교차해서 같이 보면 좋은 피처는?  블록 생성 수, 블록 사이즈, 이더 가격, 거래 수, 고유 주소 수, 활성 주소 수, 네트워크 해시율 
+
+# COMMAND ----------
+
+dp(total_log_scaled)
 
 # COMMAND ----------
 
@@ -550,8 +732,19 @@ sb.pairplot(total_scaled)
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 # MAGIC %md
-# MAGIC ## 가설1) 매커니즘상, 5개 피처는 반비례할 것 이다.
+# MAGIC ## 가설1) 블록발행 수에 따른 상관관계가 있는 피처는 아래와 같을 것이다
+# MAGIC - 정비례 피처(14) : 블록 수, 이더 가격(마켓캡), 이더 공급량, 거래 수, 활성 주소수(erc20 등), 네트워크 해시율, 가스가격, 가스 총 사용량, 
+# MAGIC - 반비례 피처(2) : 블록 보상 수, 블록 생성 수, 채굴 난이도, 
+
+# COMMAND ----------
+
+# 정비례 피처
+dp(total_log_scaled)
 
 # COMMAND ----------
 
@@ -559,15 +752,24 @@ sb.pairplot(total_scaled)
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-
+# MAGIC %md
+# MAGIC ## 가설2) 블록발행 수과 무관한 피처(9)는 아래와 같고, 이는 불규칙적인 거래 폭증 때문일 것이다.
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## 가설3) 불규칙적인 거래 폭증은 외부 요인이 클 것 이다.(트위터 등 커뮤니티 언급 또는 언론매체 노출 등)
 
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 가설4) 이더리움 업데이트는 000 영향을 줬을 것이다.
+
+# COMMAND ----------
+
+# MAGIC %MD
+# MAGIC ## 가설 5) 블록 가스한도는 00 영향을 줄 것이다.
+# MAGIC 블록 사이즈는 000과 연관이 있을 것이다.
 
 # COMMAND ----------
 
