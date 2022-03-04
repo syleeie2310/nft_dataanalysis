@@ -79,9 +79,9 @@ for i in range(len(data_list)):
         if rm_col[j] in data_list[i].columns :
             data_list[i].drop(rm_col[j], axis=1, inplace=True)
     for col in range(len(data_list[i].columns)): # 칼럼명 변경
-        culName = data_list[i].columns[col]
-        changeName = file_name[i] + '_' + culName
-        data_list[i].rename(columns={culName : changeName}, inplace=True)       
+        curName = data_list[i].columns[col]
+        changeName = file_name[i] + '_' + curName
+        data_list[i].rename(columns={curName : changeName}, inplace=True)       
     print(data_list[i].columns)
     print('=' * 50)
 
