@@ -69,10 +69,6 @@ total.describe()
 
 # COMMAND ----------
 
-!pip install missingno
-
-# COMMAND ----------
-
 # 결측치 체크
 import missingno as msno
 msno.matrix(total)
@@ -127,10 +123,6 @@ pd.set_option('float_format', '{:.4f}'.format)
 
 # COMMAND ----------
 
-total.info()
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ## 데이터 프로파일링
 # MAGIC - 기간이 다른(결측치) 카테고리 유의해야함
@@ -143,6 +135,10 @@ total.info()
 
 # MAGIC %md
 # MAGIC ## 기초 통계 분석
+
+# COMMAND ----------
+
+total.info()
 
 # COMMAND ----------
 
@@ -258,7 +254,75 @@ total_log_scaled.describe()
 
 # COMMAND ----------
 
-dp(total_log_scaled, 'total')
+# total은 메모리 초과로 실행 불가
+# dp(total_log_scaled, 'total')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## all 카테고리
+
+# COMMAND ----------
+
+dp(total_log_scaled, 'all')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## collectible 카테고리
+
+# COMMAND ----------
+
+dp(total_log_scaled, 'collectible')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## art 카테고리
+
+# COMMAND ----------
+
+dp(total_log_scaled, 'art')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## metaverse 카테고리
+
+# COMMAND ----------
+
+dp(total_log_scaled, 'metaverse')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## game 카테고리
+
+# COMMAND ----------
+
+dp(total_log_scaled, 'game')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## utility 카테고리
+
+# COMMAND ----------
+
+dp(total_log_scaled, 'utility')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## DeFi 카테고리
+
+# COMMAND ----------
+
+dp(total_log_scaled, 'defi')
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
