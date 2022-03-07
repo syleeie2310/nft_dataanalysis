@@ -153,29 +153,7 @@ total.describe(include='all')
 
 # COMMAND ----------
 
-# index를 추가해서 특정 카테고리만 display메서드를 실행하는 함수
-# display 메서드가 index를 인식 못함... 그렇다고 넣어두기에 뒤에 전처리에 계속 걸리적 거림, 변수 분리해서 관리하기로 번거로움
-def dp(data, category):
-    temp = data.copy()
-    temp['index'] = data.index
-    col_list = []
-    if category in ['total', 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility']:
-        for i in range(len(temp.columns)):
-            if category == 'total':
-                display(temp)
-            elif temp.columns[i].split('_')[0] == category:
-                col_list.append(temp.columns[i])
-            else :
-                pass
-        col_list.append('index')
-        display(temp[col_list])
-    else : 
-        print("카테고리를 입력하세요, ['total', 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility'")
-
-# COMMAND ----------
-
-# 카테고리별 시각화(raw data) -> 비교 파악하기 어려움(스케일링과 로그처리 필요), 일단 개별 분포 파악만 하고, 개별 추세는 따로 만들자
-dp(total, 'all')
+display(total)
 
 # COMMAND ----------
 
@@ -254,75 +232,215 @@ total_log_scaled.describe()
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Category Base
+
+# COMMAND ----------
+
 # total은 메모리 초과로 실행 불가
 # dp(total_log_scaled, 'total')
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## all 카테고리
-
-# COMMAND ----------
-
-dp(total_log_scaled, 'all')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## collectible 카테고리
-
-# COMMAND ----------
-
-dp(total_log_scaled, 'collectible')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## art 카테고리
-
-# COMMAND ----------
-
-dp(total_log_scaled, 'art')
+# index를 추가해서 특정 카테고리만 display메서드를 실행하는 함수
+# display 메서드가 index를 인식 못함... 그렇다고 넣어두기에 뒤에 전처리에 계속 걸리적 거림, 변수 분리해서 관리하기로 번거로움
+def displayc(data, category):
+    temp = data.copy()
+    temp['index'] = data.index
+    col_list = []
+    if category in ['total', 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility']:
+        for i in range(len(temp.columns)):
+            if category == 'total':
+                display(temp)
+            elif temp.columns[i].split('_')[0] == category:
+                col_list.append(temp.columns[i])
+            else :
+                pass
+        col_list.append('index')
+        display(temp[col_list])
+    else : 
+        print("카테고리를 입력하세요, ['total', 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility'")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## metaverse 카테고리
+# MAGIC ### all 카테고리
 
 # COMMAND ----------
 
-dp(total_log_scaled, 'metaverse')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## game 카테고리
-
-# COMMAND ----------
-
-dp(total_log_scaled, 'game')
+displayc(total_log_scaled, 'all')
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## utility 카테고리
+# MAGIC ### collectible 카테고리
 
 # COMMAND ----------
 
-dp(total_log_scaled, 'utility')
+displayc(total_log_scaled, 'collectible')
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## DeFi 카테고리
+# MAGIC ### art 카테고리
 
 # COMMAND ----------
 
-dp(total_log_scaled, 'defi')
+displayc(total_log_scaled, 'art')
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### metaverse 카테고리
 
+# COMMAND ----------
+
+displayc(total_log_scaled, 'metaverse')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### game 카테고리
+
+# COMMAND ----------
+
+displayc(total_log_scaled, 'game')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### utility 카테고리
+
+# COMMAND ----------
+
+displayc(total_log_scaled, 'utility')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### DeFi 카테고리
+
+# COMMAND ----------
+
+displayc(total_log_scaled, 'defi')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Feature Base
+# MAGIC - active_market_wallets, average_usd, number_of_sales, primary_sales, primary_sales_usd, sales_usd, secondary_sales, secondary_sales_usd, unique_buyers, unique_sellers
+
+# COMMAND ----------
+
+# index를 추가해서 특정 카테고리만 display메서드를 실행하는 함수
+# display 메서드가 index를 인식 못함... 그렇다고 넣어두기에 뒤에 전처리에 계속 걸리적 거림, 변수 분리해서 관리하기로 번거로움
+def displayf(data, feature):
+    temp = data.copy()
+    temp['index_date'] = data.index # _date를 붙여야 split[1]에서 인덱스 에러 안남
+    col_list = []
+    if feature in ['active_market_wallets', 'average_usd', 'number_of_sales', 'primary_sales', 'primary_sales_usd', 'sales_usd', 'secondary_sales', 'secondary_sales_usd', 'unique_buyers', 'unique_sellers']:
+        for i in range(len(temp.columns)):
+            split_col = temp.columns[i].split('_', maxsplit=1)[1]
+            if split_col == feature:       
+                col_list.append(temp.columns[i])
+            elif split_col == 'all_sales_usd' and feature == 'sales_usd' : #콜렉터블만 sales_usd앞에 all이붙어서 따로 처리해줌
+                col_list.append('collectible_all_sales_usd')
+            else :
+                pass
+        col_list.append('index_date')
+        display(temp[col_list])
+    else : 
+        print("피처칼럼을 입력하세요, ['active_market_wallets', 'average_usd', 'number_of_sales', 'primary_sales', 'primary_sales_usd', 'sales_usd', 'secondary_sales', 'secondary_sales_usd', 'unique_buyers', 'unique_sellers']")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Number of Sales 비교
+
+# COMMAND ----------
+
+displayf(total_log_scaled, 'number_of_sales')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Sales USD 비교
+
+# COMMAND ----------
+
+displayf(total_log_scaled, 'sales_usd')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Average USD 비교
+
+# COMMAND ----------
+
+displayf(total_log_scaled, 'average_usd')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Active Market Wallets 비교
+
+# COMMAND ----------
+
+displayf(total_log_scaled, 'active_market_wallets')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Primary Sales 비교
+
+# COMMAND ----------
+
+displayf(total_log_scaled, 'primary_sales')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Secondary Sales 비교
+
+# COMMAND ----------
+
+displayf(total_log_scaled, 'secondary_sales')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Primary Sales USD 비교
+
+# COMMAND ----------
+
+displayf(total_log_scaled, 'primary_sales_usd')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Secondary Sales USD 비교
+
+# COMMAND ----------
+
+displayf(total_log_scaled, 'secondary_sales_usd')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Unique Buyers 비교
+
+# COMMAND ----------
+
+displayf(total_log_scaled, 'unique_buyers')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Unique Sellers 비교
+
+# COMMAND ----------
+
+displayf(total_log_scaled, 'unique_sellers')
 
 # COMMAND ----------
 
