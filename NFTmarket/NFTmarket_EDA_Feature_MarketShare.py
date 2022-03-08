@@ -192,7 +192,7 @@ def line_plot(data):
 
 # COMMAND ----------
 
-line_plot(total) 
+# line_plot(total) 
 
 # COMMAND ----------
 
@@ -246,7 +246,11 @@ def displayf(data, feature):
     col_list = []
     if feature in ['active_market_wallets', 'average_usd', 'number_of_sales', 'primary_sales', 'primary_sales_usd', 'sales_usd', 'secondary_sales', 'secondary_sales_usd', 'unique_buyers', 'unique_sellers']:
         for i in range(len(temp.columns)):
-            split_col = temp.columns[i].split('_', maxsplit=1)[1]
+            split_col = temp.columns[i].split('_', maxsplit=1)
+#             split_category, split_col = temp.columns[i].split('_', maxsplit=1)
+#             if split_category == 'all': # 비중 비교를 위해 all항목은 제외한다.(인터렉티브 그래프에서 안빠짐..) -> 미리 빼면 되넹..
+#                 pass
+#             else :
             if split_col == feature:       
                 col_list.append(temp.columns[i])
             elif split_col == 'all_sales_usd' and feature == 'sales_usd' : #콜렉터블만 sales_usd앞에 all이붙어서 따로 처리해줌
@@ -261,7 +265,8 @@ def displayf(data, feature):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Number of Sales 비교
+# MAGIC ### Number of Sales 
+# MAGIC 비교
 
 # COMMAND ----------
 
