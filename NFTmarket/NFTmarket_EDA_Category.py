@@ -268,12 +268,20 @@ def displayc(data, category):
 
 # COMMAND ----------
 
+displayc(total, 'all')
+
+# COMMAND ----------
+
 displayc(total_log_scaled, 'all')
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### collectible 카테고리
+
+# COMMAND ----------
+
+displayc(total, 'collectible')
 
 # COMMAND ----------
 
@@ -286,12 +294,20 @@ displayc(total_log_scaled, 'collectible')
 
 # COMMAND ----------
 
+displayc(total, 'art')
+
+# COMMAND ----------
+
 displayc(total_log_scaled, 'art')
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### metaverse 카테고리
+
+# COMMAND ----------
+
+displayc(total, 'metaverse')
 
 # COMMAND ----------
 
@@ -304,12 +320,20 @@ displayc(total_log_scaled, 'metaverse')
 
 # COMMAND ----------
 
+displayc(total, 'game')
+
+# COMMAND ----------
+
 displayc(total_log_scaled, 'game')
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### utility 카테고리
+
+# COMMAND ----------
+
+displayc(total, 'utility')
 
 # COMMAND ----------
 
@@ -322,9 +346,8 @@ displayc(total_log_scaled, 'utility')
 
 # COMMAND ----------
 
-displayc(total_log_scaled, 'defi')
+displayc(total, 'defi')
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC # 상관관계 분석
+displayc(total_log_scaled, 'defi')

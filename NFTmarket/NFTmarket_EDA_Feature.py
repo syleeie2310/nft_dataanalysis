@@ -153,7 +153,8 @@ total.describe(include='all')
 
 # COMMAND ----------
 
-# display(total)
+#너무 무거움
+#display(total)
 
 # COMMAND ----------
 
@@ -275,28 +276,18 @@ displayf(total_log_scaled, 'number_of_sales')
 
 # COMMAND ----------
 
-# 비중 추이 비교(raw)
-displayf(total, 'number_of_sales')
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ### Sales USD 비교
 
 # COMMAND ----------
 
 # 추세 비교(raw)
-displayf(total, 'active_market_wallets')
+displayf(total, 'sales_usd')
 
 # COMMAND ----------
 
 # 추세 비교(정규화)
 displayf(total_log_scaled, 'sales_usd')
-
-# COMMAND ----------
-
-# 비중 추이 비교(raw)
-displayf(total, 'sales_usd')
 
 # COMMAND ----------
 
@@ -315,11 +306,6 @@ displayf(total_log_scaled, 'average_usd')
 
 # COMMAND ----------
 
-# 비중 추이 비교
-displayf(total, 'average_usd')
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ### Active Market Wallets 비교
 
@@ -332,11 +318,6 @@ displayf(total, 'active_market_wallets')
 
 # 추세 비교(정규화)
 displayf(total_log_scaled, 'active_market_wallets')
-
-# COMMAND ----------
-
-# 비중 추이 비교(raw)
-displayf(total, 'active_market_wallets')
 
 # COMMAND ----------
 
@@ -355,11 +336,6 @@ displayf(total_log_scaled, 'primary_sales')
 
 # COMMAND ----------
 
-# 비중 추이 비교
-displayf(total, 'primary_sales')
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ### Secondary Sales 비교
 
@@ -372,11 +348,6 @@ displayf(total, 'secondary_sales')
 
 # 추세 패턴 파악
 displayf(total_log_scaled, 'secondary_sales')
-
-# COMMAND ----------
-
-# 비중 경향 파악
-displayf(total, 'secondary_sales')
 
 # COMMAND ----------
 
@@ -395,11 +366,6 @@ displayf(total_log_scaled, 'primary_sales_usd')
 
 # COMMAND ----------
 
-# 비중 경향 파악
-displayf(total, 'primary_sales_usd')
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ### Secondary Sales USD 비교
 
@@ -412,11 +378,6 @@ displayf(total, 'secondary_sales_usd')
 
 # 추세 패턴 파악
 displayf(total_log_scaled, 'secondary_sales_usd')
-
-# COMMAND ----------
-
-# 비중 경향 파악(RAW)
-displayf(total, 'secondary_sales_usd')
 
 # COMMAND ----------
 
@@ -435,11 +396,6 @@ displayf(total_log_scaled, 'unique_buyers')
 
 # COMMAND ----------
 
-# 비중 경향 파악
-displayf(total, 'unique_buyers')
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ### Unique Sellers 비교
 
@@ -452,13 +408,3 @@ displayf(total, 'unique_sellers')
 
 # 추세 패턴 파악
 displayf(total_log_scaled, 'unique_sellers')
-
-# COMMAND ----------
-
-# 비중 경향 파악
-displayf(total, 'unique_sellers')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC # 상관관계 분석
