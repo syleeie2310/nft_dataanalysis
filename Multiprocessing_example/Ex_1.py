@@ -12,6 +12,11 @@ eth = Etherscan('E9V452TNCZUVD73XHDQSQRXWYEZDDXY13B')
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC # get_erc721_token_transfer_events_by_contract_address_paginated
+
+# COMMAND ----------
+
 # 멀티 프로세싱 사용하기 위한 함수 
 # 
 # 임의 10개 계약주소  ex
