@@ -268,11 +268,18 @@ def displayc(data, category):
 
 # COMMAND ----------
 
+# 1차/2차 시장 판매수 비교
 displayc(total, 'all')
 
 # COMMAND ----------
 
-displayc(total_log_scaled, 'all')
+# 1차/2차 시장규모 비교
+displayc(total, 'all')
+
+# COMMAND ----------
+
+# 유니크 구매자/판매자 수 비교
+displayc(total, 'all')
 
 # COMMAND ----------
 
@@ -281,11 +288,18 @@ displayc(total_log_scaled, 'all')
 
 # COMMAND ----------
 
+# 1차/2차 시장 판매수 점유율 비교
 displayc(total, 'collectible')
 
 # COMMAND ----------
 
-displayc(total_log_scaled, 'collectible')
+# 1차/2차 시장규모 점유율 비교
+displayc(total, 'collectible')
+
+# COMMAND ----------
+
+# 유니크 구매자/판매자 점유율 비교
+displayc(total, 'collectible')
 
 # COMMAND ----------
 
@@ -294,11 +308,18 @@ displayc(total_log_scaled, 'collectible')
 
 # COMMAND ----------
 
+# 1차/2차 시장 판매수 점유율 비교
 displayc(total, 'art')
 
 # COMMAND ----------
 
-displayc(total_log_scaled, 'art')
+# 1차/2차 시장규모 점유율 비교
+displayc(total, 'art')
+
+# COMMAND ----------
+
+# 유니크 구매자/판매자 점유율 비교
+displayc(total, 'art')
 
 # COMMAND ----------
 
@@ -307,11 +328,18 @@ displayc(total_log_scaled, 'art')
 
 # COMMAND ----------
 
+# 1차/2차 시장 판매수 점유율 비교
 displayc(total, 'metaverse')
 
 # COMMAND ----------
 
-displayc(total_log_scaled, 'metaverse')
+# 1차/2차 시장규모 점유율 비교
+displayc(total, 'metaverse')
+
+# COMMAND ----------
+
+# 유니크 구매자/판매자 점유율 비교
+displayc(total, 'metaverse')
 
 # COMMAND ----------
 
@@ -320,11 +348,18 @@ displayc(total_log_scaled, 'metaverse')
 
 # COMMAND ----------
 
+# 1차/2차 시장 판매수 점유율 비교
 displayc(total, 'game')
 
 # COMMAND ----------
 
-displayc(total_log_scaled, 'game')
+# 1차/2차 시장규모 점유율 비교
+displayc(total, 'game')
+
+# COMMAND ----------
+
+# 유니크 구매자/판매자 점유율 비교
+displayc(total, 'game')
 
 # COMMAND ----------
 
@@ -333,11 +368,18 @@ displayc(total_log_scaled, 'game')
 
 # COMMAND ----------
 
+# 1차/2차 시장 판매수 점유율 비교
 displayc(total, 'utility')
 
 # COMMAND ----------
 
-displayc(total_log_scaled, 'utility')
+# 1차/2차 시장규모 점유율 비교
+displayc(total, 'utility')
+
+# COMMAND ----------
+
+# 유니크 구매자/판매자 점유율 비교
+displayc(total, 'utility')
 
 # COMMAND ----------
 
@@ -346,8 +388,15 @@ displayc(total_log_scaled, 'utility')
 
 # COMMAND ----------
 
+# 1차/2차 시장 판매수 점유율 비교
 displayc(total, 'defi')
 
 # COMMAND ----------
 
-displayc(total_log_scaled, 'defi')
+# 1차/2차 시장규모 점유율 비교
+displayc(total, 'defi')
+
+# COMMAND ----------
+
+# 유니크 구매자/판매자 점유율 비교
+displayc(total, 'defi')
