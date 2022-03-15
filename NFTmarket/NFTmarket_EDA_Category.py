@@ -153,7 +153,7 @@ total.describe(include='all')
 
 # COMMAND ----------
 
-# display(total)
+display(total)
 
 # COMMAND ----------
 
