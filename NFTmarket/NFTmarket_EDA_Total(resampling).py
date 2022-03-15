@@ -1,6 +1,6 @@
 # Databricks notebook source
 import numpy as np
-import pandas as pd
+import pandas as pddat
 
 # COMMAND ----------
 
@@ -383,8 +383,10 @@ totalQ_avg_log_scaled.describe()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 6. 카테고리별 시각화
+# MAGIC # 6. 인터렉티브 시각화(비교)
 # MAGIC - 분기 기준 고정
+# MAGIC - 추세 비교 그래프
+# MAGIC - 비중 비교 그래프
 
 # COMMAND ----------
 
@@ -393,38 +395,51 @@ totalQ_avg_log_scaled.describe()
 
 # COMMAND ----------
 
-# total은 메모리 초과로 실행 불가
-# dp(total_log_scaled, 'total')
+# MAGIC %md
+# MAGIC ### [함수] 카테고리 (칼럼) 분류기
 
 # COMMAND ----------
 
-# index를 추가해서 특정 카테고리만 display메서드를 실행하는 함수
-# display 메서드가 index를 인식 못함... 그렇다고 넣어두기에 뒤에 전처리에 계속 걸리적 거림, 변수 분리해서 관리하기로 번거로움
-def displayc(data, category):
-    temp = data.copy()
-    temp['index'] = data.index
+# 카테고리 분류기
+
+def category_classifier(data, category):
     col_list = []
+    for i in range(len(data.columns)):
+        if category == 'total':
+            return category
+        elif data.columns[i].split('_')[0] == category:
+            col_list.append(data.columns[i])
+        else :
+            pass
+    return col_list
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### [함수] 카테고리별 라인차트 생성기
+
+# COMMAND ----------
+
+import plotly.express as px
+
+def lineC(data, category):
+    # 입력 유효성 체크
     if category in ['total', 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility']:
-        for i in range(len(temp.columns)):
-            if category == 'total':
-                display(temp)
-            elif temp.columns[i].split('_')[0] == category:
-                col_list.append(temp.columns[i])
-            else :
-                pass
-        col_list.append('index')
-        display(temp[col_list])
+        # 카테고리 분류기 호출
+        col_list = category_classifier(temp, category)
+        # 라인차트 정의
+        for j in range(len(col_list)):
+            fig = px.line(data[col_list])     
+        fig.layout = dict(title= f'{category}카테고리별 피처 *추세* 비교')
+        fig.show()    
+        
     else : 
         print("카테고리를 입력하세요, ['total', 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility'")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 분기별 all 카테고리 추세
-
-# COMMAND ----------
-
-displayc(totalQ_avg_log_scaled, 'all')
+# MAGIC ### [함수] 카테고리별 누적영역차트 생성기
 
 # COMMAND ----------
 
@@ -432,27 +447,17 @@ displayc(totalQ_avg_log_scaled, 'all')
 import plotly.express as px
 import plotly.graph_objects as go
 
-def stackarea(data, category):
-    temp = data.copy()
-    col_list = []
-    fig = go.Figure()
-    # 카테고리 분류
+def stackareaC(data, category):
+    # 입력 유효성 체크
     if category in ['total', 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility']:
-        for i in range(len(temp.columns)):
-            if category == 'total':
-#                 temp.plot.area()
-                fig = px.area(temp)
-            elif temp.columns[i].split('_')[0] == category:
-                col_list.append(temp.columns[i])
-            else :
-                pass
-#         temp[col_list].plot.area() # 판다스 영역 차트
-#         fig = px.area(temp[col_list]) # 플롯틀리 영역차트
-        # 그래프 그리기
+        # 카테고리 분류기 호출
+        col_list = category_classifier(data, category)
+        # 누적영역차트 정의
+        fig = go.Figure()
         for j in range(len(col_list)):
             fig.add_trace(go.Scatter(
-                x = temp[col_list[j]].index,
-                y = temp[col_list[j]].values,
+                x = data[col_list[j]].index,
+                y = data[col_list[j]].values,
                 hoverinfo='x+y',
                 mode='lines',
                 line=dict(width = 0.5),
@@ -460,18 +465,24 @@ def stackarea(data, category):
                 groupnorm='percent',
                 name = col_list[j]
             ))
-        fig.update_layout(
-            showlegend=True,
-            yaxis=dict(
-                range=[1, 100],
-                ticksuffix='%'))
+        fig.layout = dict(title= f'{category}카테고리별 피처 *비중* 비교')
+        fig.update_layout(showlegend=True, yaxis=dict(range=[1, 100], ticksuffix='%'))
         fig.show()
     else : 
         print("카테고리를 입력하세요, ['total', 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility'")
 
 # COMMAND ----------
 
-stackarea(totalQ_avg, 'all')
+# MAGIC %md
+# MAGIC ### all 카테고리
+
+# COMMAND ----------
+
+lineC(totalQ_avg_log_scaled, 'all')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'all')
 
 # COMMAND ----------
 
@@ -480,11 +491,11 @@ stackarea(totalQ_avg, 'all')
 
 # COMMAND ----------
 
-displayc(totalQ_avg_log_scaled, 'collectible')
+lineC(totalQ_avg_log_scaled, 'collectible')
 
 # COMMAND ----------
 
-
+stackareaC(totalQ_avg, 'collectible')
 
 # COMMAND ----------
 
@@ -493,11 +504,11 @@ displayc(totalQ_avg_log_scaled, 'collectible')
 
 # COMMAND ----------
 
-displayc(totalQ_avg_log_scaled, 'art')
+lineC(totalQ_avg_log_scaled, 'art')
 
 # COMMAND ----------
 
-
+stackareaC(totalQ_avg, 'art')
 
 # COMMAND ----------
 
@@ -506,11 +517,11 @@ displayc(totalQ_avg_log_scaled, 'art')
 
 # COMMAND ----------
 
-displayc(totalQ_avg_log_scaled, 'metaverse')
+lineC(totalQ_avg_log_scaled, 'metaverse')
 
 # COMMAND ----------
 
-
+stackareaC(totalQ_avg, 'metaverse')
 
 # COMMAND ----------
 
@@ -519,11 +530,11 @@ displayc(totalQ_avg_log_scaled, 'metaverse')
 
 # COMMAND ----------
 
-displayc(totalQ_avg_log_scaled, 'game')
+lineC(totalQ_avg_log_scaled, 'game')
 
 # COMMAND ----------
 
-
+stackareaC(totalQ_avg, 'game')
 
 # COMMAND ----------
 
@@ -532,11 +543,11 @@ displayc(totalQ_avg_log_scaled, 'game')
 
 # COMMAND ----------
 
-displayc(totalQ_avg_log_scaled, 'utility')
+lineC(totalQ_avg_log_scaled, 'utility')
 
 # COMMAND ----------
 
-
+stackareaC(totalQ_avg, 'utility')
 
 # COMMAND ----------
 
@@ -545,11 +556,11 @@ displayc(totalQ_avg_log_scaled, 'utility')
 
 # COMMAND ----------
 
-displayc(totalQ_avg_log_scaled, 'defi')
+lineC(totalQ_avg_log_scaled, 'defi')
 
 # COMMAND ----------
 
-
+stackareaC(totalQ_avg, 'defi')
 
 # COMMAND ----------
 
@@ -559,23 +570,77 @@ displayc(totalQ_avg_log_scaled, 'defi')
 
 # COMMAND ----------
 
-# index를 추가해서 특정 카테고리만 display메서드를 실행하는 함수
-# display 메서드가 index를 인식 못함... 그렇다고 넣어두기에 뒤에 전처리에 계속 걸리적 거림, 변수 분리해서 관리하기로 번거로움
-def displayf(data, feature):
-    temp = data.copy()
-    temp['index_date'] = data.index # _date를 붙여야 split[1]에서 인덱스 에러 안남
+# MAGIC %md
+# MAGIC ### [함수] 피처 칼럼 분류기
+
+# COMMAND ----------
+
+# 카테고리 분류기
+def feature_classifier(data, feature):
     col_list = []
+    for i in range(len(data.columns)):
+        split_col = data.columns[i].split('_', maxsplit=1)[1]
+        if split_col == feature:       
+            col_list.append(data.columns[i])
+        elif split_col == 'all_sales_usd' and feature == 'sales_usd' : #콜렉터블만 sales_usd앞에 all이붙어서 따로 처리해줌
+            col_list.append('collectible_all_sales_usd')
+        else :
+            pass
+    return col_list
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### [함수] 피처별 라인차트 생성기
+
+# COMMAND ----------
+
+def lineF(data, feature):
+    # 피처 입력값 유효성 체크
     if feature in ['active_market_wallets', 'average_usd', 'number_of_sales', 'primary_sales', 'primary_sales_usd', 'sales_usd', 'secondary_sales', 'secondary_sales_usd', 'unique_buyers', 'unique_sellers']:
-        for i in range(len(temp.columns)):
-            split_col = temp.columns[i].split('_', maxsplit=1)[1]
-            if split_col == feature:       
-                col_list.append(temp.columns[i])
-            elif split_col == 'all_sales_usd' and feature == 'sales_usd' : #콜렉터블만 sales_usd앞에 all이붙어서 따로 처리해줌
-                col_list.append('collectible_all_sales_usd')
-            else :
-                pass
-        col_list.append('index_date')
-        display(temp[col_list])
+        # 피처 분류기 호출
+        col_list = feature_classifier(data, feature)
+        # 라인차트 정의
+        for j in range(len(col_list)):
+            fig = px.line(data[col_list])     
+        fig.layout = dict(title= f'{feature} 피처별 *추세* 비교')
+        fig.show()    
+        
+    else : 
+        print("피처칼럼을 입력하세요, ['active_market_wallets', 'average_usd', 'number_of_sales', 'primary_sales', 'primary_sales_usd', 'sales_usd', 'secondary_sales', 'secondary_sales_usd', 'unique_buyers', 'unique_sellers']")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### [함수] 피처별 누적영역차트 생성기
+
+# COMMAND ----------
+
+# 누적 영역 차트 함수 생성
+import plotly.express as px
+import plotly.graph_objects as go
+
+def stackareaF(data, feature):
+    # 입력 유효성 체크
+    if feature in ['active_market_wallets', 'average_usd', 'number_of_sales', 'primary_sales', 'primary_sales_usd', 'sales_usd', 'secondary_sales', 'secondary_sales_usd', 'unique_buyers', 'unique_sellers']:
+        # 피처 분류기 호출
+        col_list = feature_classifier(data, feature)
+        # 누적영역차트 정의
+        fig = go.Figure()
+        for j in range(len(col_list)):
+            fig.add_trace(go.Scatter(
+                x = data[col_list[j]].index,
+                y = data[col_list[j]].values,
+                hoverinfo='x+y',
+                mode='lines',
+                line=dict(width = 0.5),
+                stackgroup='one',
+                groupnorm='percent',
+                name = col_list[j]
+            ))
+        fig.layout = dict(title= f'{feature}피처별 *비중* 비교')
+        fig.update_layout(showlegend=True, yaxis=dict(range=[1, 100], ticksuffix='%'))
+        fig.show()
     else : 
         print("피처칼럼을 입력하세요, ['active_market_wallets', 'average_usd', 'number_of_sales', 'primary_sales', 'primary_sales_usd', 'sales_usd', 'secondary_sales', 'secondary_sales_usd', 'unique_buyers', 'unique_sellers']")
 
@@ -586,11 +651,11 @@ def displayf(data, feature):
 
 # COMMAND ----------
 
-displayf(totalQ_avg_log_scaled, 'number_of_sales')
+lineF(totalQ_avg_log_scaled, 'number_of_sales')
 
 # COMMAND ----------
 
-
+stackareaF(totalQ_avg, 'number_of_sales')
 
 # COMMAND ----------
 
@@ -599,11 +664,11 @@ displayf(totalQ_avg_log_scaled, 'number_of_sales')
 
 # COMMAND ----------
 
-displayf(totalQ_avg_log_scaled, 'sales_usd')
+lineF(totalQ_avg_log_scaled, 'sales_usd')
 
 # COMMAND ----------
 
-
+stackareaF(totalQ_avg, 'sales_usd')
 
 # COMMAND ----------
 
@@ -612,11 +677,11 @@ displayf(totalQ_avg_log_scaled, 'sales_usd')
 
 # COMMAND ----------
 
-displayf(totalQ_avg_log_scaled, 'average_usd')
+lineF(totalQ_avg_log_scaled, 'average_usd')
 
 # COMMAND ----------
 
-
+stackareaF(totalQ_avg, 'average_usd')
 
 # COMMAND ----------
 
@@ -625,11 +690,11 @@ displayf(totalQ_avg_log_scaled, 'average_usd')
 
 # COMMAND ----------
 
-displayf(totalQ_avg_log_scaled, 'active_market_wallets')
+lineF(totalQ_avg_log_scaled, 'active_market_wallets')
 
 # COMMAND ----------
 
-
+stackareaF(totalQ_avg, 'active_market_wallets')
 
 # COMMAND ----------
 
@@ -638,11 +703,11 @@ displayf(totalQ_avg_log_scaled, 'active_market_wallets')
 
 # COMMAND ----------
 
-displayf(totalQ_avg_log_scaled, 'primary_sales')
+lineF(totalQ_avg_log_scaled, 'primary_sales')
 
 # COMMAND ----------
 
-
+stackareaF(totalQ_avg, 'primary_sales')
 
 # COMMAND ----------
 
@@ -651,11 +716,11 @@ displayf(totalQ_avg_log_scaled, 'primary_sales')
 
 # COMMAND ----------
 
-displayf(totalQ_avg_log_scaled, 'secondary_sales')
+lineF(totalQ_avg_log_scaled, 'secondary_sales')
 
 # COMMAND ----------
 
-
+stackareaF(totalQ_avg, 'secondary_sales')
 
 # COMMAND ----------
 
@@ -664,11 +729,11 @@ displayf(totalQ_avg_log_scaled, 'secondary_sales')
 
 # COMMAND ----------
 
-displayf(totalQ_avg_log_scaled, 'primary_sales_usd')
+lineF(totalQ_avg_log_scaled, 'primary_sales_usd')
 
 # COMMAND ----------
 
-
+stackareaF(totalQ_avg, 'primary_sales_usd')
 
 # COMMAND ----------
 
@@ -677,11 +742,11 @@ displayf(totalQ_avg_log_scaled, 'primary_sales_usd')
 
 # COMMAND ----------
 
-displayf(totalQ_avg_log_scaled, 'secondary_sales_usd')
+lineF(totalQ_avg_log_scaled, 'secondary_sales_usd')
 
 # COMMAND ----------
 
-
+stackareaF(totalQ_avg, 'secondary_sales_usd')
 
 # COMMAND ----------
 
@@ -690,11 +755,11 @@ displayf(totalQ_avg_log_scaled, 'secondary_sales_usd')
 
 # COMMAND ----------
 
-displayf(totalQ_avg_log_scaled, 'unique_buyers')
+lineF(totalQ_avg_log_scaled, 'unique_buyers')
 
 # COMMAND ----------
 
-
+stackareaF(totalQ_avg, 'unique_buyers')
 
 # COMMAND ----------
 
@@ -703,8 +768,8 @@ displayf(totalQ_avg_log_scaled, 'unique_buyers')
 
 # COMMAND ----------
 
-displayf(totalQ_avg_log_scaled, 'unique_sellers')
+lineF(totalQ_avg_log_scaled, 'unique_sellers')
 
 # COMMAND ----------
 
-
+stackareaF(totalQ_avg, 'unique_sellers')
