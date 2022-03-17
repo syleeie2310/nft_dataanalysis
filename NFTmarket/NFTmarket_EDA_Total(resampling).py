@@ -243,7 +243,7 @@ def line_plot(data):
 # COMMAND ----------
 
 # 갭이 크고 피처가 너무 많다., 정규화(로그변환) 후 카테고리별로 시각화 하자
-line_plot(total)
+# line_plot(total)
 
 # COMMAND ----------
 
@@ -271,12 +271,17 @@ def box_plot(data):
 # COMMAND ----------
 
 # 전체범위 분위수는 무의미하다.
-box_plot(total)
+# box_plot(total)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 4. 데이터 리샘플링
+# MAGIC # 4. 데이터 트랜스포밍
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 데이터 리샘플링
 # MAGIC - 일 -> 반기(월단위는 분포 비교 어렵고, 1분기도 여전히 범주가 많다)
 
 # COMMAND ----------
@@ -292,17 +297,48 @@ total['all_active_market_wallets']['2017-7':'2017-12'].mean()
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## 리샘플링 데이터 프로파일링
-
-# COMMAND ----------
-
 total2Q_avg.describe(include='all')
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 리샘플링 데이터 시각화
+# MAGIC # 5. 데이터 정규화
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 로그 변환
+
+# COMMAND ----------
+
+totalQ_avg = total.resample(rule='Q').mean()
+totalQ_avg_log = totalQ_avg.copy()
+totalQ_avg_log = np.log1p(totalQ_avg_log)
+totalQ_avg_log.describe()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 스케일링
+# MAGIC - 모형을 유지할 수 있고, 정규분포가 아니므로 min-max scaler가 적합
+# MAGIC https://ysyblog.tistory.com/217
+
+# COMMAND ----------
+
+from sklearn.preprocessing import MinMaxScaler
+minmax_scaler = MinMaxScaler()
+totalQ_avg_log_scaled = totalQ_avg_log.copy()
+totalQ_avg_log_scaled.iloc[:,:] = minmax_scaler.fit_transform(totalQ_avg_log_scaled)
+totalQ_avg_log_scaled.describe()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 6. 변환 데이터 시각화
+# MAGIC - Histogram : 분포 체크, 2Q_avg
+# MAGIC - Line : 추세 체크, 2
+# MAGIC - Candle Stick : 분위수 체크
+# MAGIC - Stack Area : 비중 체크 
 
 # COMMAND ----------
 
@@ -381,21 +417,25 @@ display(total2Q_avg)
 
 # MAGIC %md
 # MAGIC ### 라인 플롯 : 추세 비교
-# MAGIC - 17년 4Q, 18년 1Q, 20년 4Q, 21년 4Q의 큰 변곡점이 있다.  -> (17년, 18~20년, 21년, 22년) 크게 4개의 구간을 나눠 분석이 필요해보임
+# MAGIC - 17년 4Q, 18년 1Q, 20년 4Q, 21년 4Q의 큰 변곡점이 있다.  -> (18~20년, 21년, 22년) 크게 3개의 구간을 나눠 분석이 필요해보임
+# MAGIC - 2018년도부터 비교하는 것이 유의미함(아트,메타버스 등 대부분의 데이터들이 18년도부터 포함됨)
 # MAGIC ---
 # MAGIC 1. 17년 4Q : 17년 10월 크립토키티(**ERC721**) 출시로 이더리움 NFT가 세상에 알려지기 시작하며, 17년 12월 오픈씨가 출시 되었다. 실제로 크립토키티 인기로 인해 이더네트워크 정체 발생, TX사상 최고치 기록, 속도 크게 저하, 이더리움 트래픽 25%를 차지했다.
+# MAGIC 
+# MAGIC 
 # MAGIC 2. 18년 1Q : NFT 캄브리아기, 100개 이상 프로젝트가 생겨남, metamask와 같은 지갑의 개선으로 온보딩이 쉬워지고 axi infinity(18년 3월 출시)등 유명 Dapp 프로젝트, 플랫폼 등이 생겨남
 # MAGIC 3. 20년 4Q : 주요 마켓플레이스인 오픈시에서 무료로 NFT발행 서비스를 발표(폴리곤으로 추정)
 # MAGIC 4. 21년 4Q : 세간의 이목을 끄는 판매와 미술품 경매, 그리고 페이스북의 사명변경(메타)등의 메타버스 시대로 인해 대중의 NFT관심 증대, 
 # MAGIC ---
 # MAGIC ### 참고 : 구글트랜드 NFT 검색 추이
 # MAGIC - 21년 2월 증가, , 3월 감소, 7월 증가, 9월감소, 10월 증가
+# MAGIC - 21년 8월 급등(plant vs undead 출시)
 # MAGIC - 22년 2월부터 감소(왜지??, 메타 주가 급락과 연관이 있어보임)
 # MAGIC https://trends.google.co.kr/trends/explore?date=today%205-y&q=nft
 
 # COMMAND ----------
 
-# chart에서 로그변환 할 수 있음
+# chart에서 로그변환 할 수 있음, 귀찮아서 plotly 안바꿈
 temp = total2Q_avg.copy()
 temp['index'] = total2Q_avg.index
 display(temp)
@@ -407,9 +447,26 @@ display(temp)
 # MAGIC - 주식에서 많이 사용하는 캔들스틱 차트를 써보자
 # MAGIC - 17~20년와 21년도와의 차이가 큼, 21년도 기준으로분석하는게 유의미 해보임
 # MAGIC   - (콜렉션 데이터도 21년 4월~9월)
-# MAGIC 
-# MAGIC ### all카테고리만 구간별로 볼수 있게 바꿔야하는데 귀찮아서 아직 안바꿈
-# MAGIC - 2017년 하반기, 2018년~20년, 21년 22년 이렇게 4개로 구분해서 분위수 파악 필요 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [함수] 캔들스틱용 데이터셋 생성기
+
+# COMMAND ----------
+
+# 캔들스틱용 데이터셋 생성 함수(OHLC+리샘플링 변환 및 이동평균 데이터 생성)
+def candleTransform(data, rule, start, end):
+    total_ohlc = data[start:end].resample(rule).ohlc()
+    total_median = data[start:end].resample(rule).median()
+    total_median_MA2 = total_median.rolling(2).mean() 
+    total_median_MA4 = total_median.rolling(4).mean()
+    return total_ohlc, total_median, total_median_MA2, total_median_MA4
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [함수] 캔들스틱 차트 생성기
 
 # COMMAND ----------
 
@@ -417,19 +474,21 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 # 그래프 생성 함수
-def candlestick(data, mediandata, ma2data, ma4data, col_data, i, j):
+def candlePlot(data, mediandata, ma2data, ma4data, col, rule):
     num = 0
+    col_data = data[col]
     fig = go.Figure(data=[go.Candlestick(x= col_data.index,
                                                     open=col_data['open'],
                                                     high=col_data['high'],
                                                     low=col_data['low'],
                                                     close=col_data['close']),
-                                      go.Scatter(x=col_data.index, y=ma2data.iloc[:,j], line=dict(color='orange', width=1), name ='Median(MA2)'),
-                                      go.Scatter(x=col_data.index, y=ma4data.iloc[:,j], line=dict(color='green', width=1), name ='Median(MA4)'),
-                                      go.Scatter(x=col_data.index, y=mediandata.iloc[:,j], line=dict(color='blue', width=1), name ='Median(rule)')
+                                      go.Scatter(x=col_data.index, y=ma2data[col], line=dict(color='orange', width=1), name ='Median(MA2)'),
+                                      go.Scatter(x=col_data.index, y=ma4data[col], line=dict(color='green', width=1), name ='Median(MA4)'),
+                                      go.Scatter(x=col_data.index, y=mediandata[col], line=dict(color='blue', width=1), name ='Median(rule)')
                                      ])
+
     num += 1
-    fig.layout = dict(title= f'[{num}], {data.columns[i][0]}', xaxis_title = 'Quater', yaxis_title= 'Value')
+    fig.layout = dict(title= f'[{num}], {col}', xaxis_title = rule, yaxis_title= 'Value')
 
     #         주석 = [ dict ( 
     #         x ='2016-12-09' ,  y = 0.05 ,  xref = 'x' ,  yref = 'paper' , 
@@ -438,94 +497,130 @@ def candlestick(data, mediandata, ma2data, ma4data, col_data, i, j):
 
 # COMMAND ----------
 
-def candle(data, rule, option,  start, end):
+# MAGIC %md
+# MAGIC #### [함수] 캔들스틱용 카테고리 및 피처 분류기
+
+# COMMAND ----------
+
+# 카테고리 및 피처파트  분류기 함수
+def category_part_classifier(category, part):
+    # 피처파트 입력값 유효성 체크
+    if part in ['wholeMarket', 'primaryMarket', 'secondaryMarket', 'userAddress']:
+
+        # 피처파트별,  카테고리 + 파트칼럼을 합쳐 조회할 칼럼명 생성
+        col_list = []
+        if part == 'wholeMarket':
+            for col in ['number_of_sales', 'sales_usd', 'average_usd']:
+                col_list.append(category + '_' + col)
+                result = col_list
+        elif part == 'primaryMarket':
+            for col in ['primary_sales', 'primary_sales_usd']:
+                col_list.append(category + '_' + col)
+                result = col_list
+        elif part == 'secondaryMarket':
+            for col in ['secondary_sales', 'secondary_sales_usd']:
+                col_list.append(category + '_' + col)
+                result = col_list
+        elif part == 'userAddress':
+            for col in ['active_market_wallets', 'unique_buyers', 'unique_sellers']:
+                col_list.append(category + '_' + col)
+                result = col_list
+        else :
+            print('입력값 또는 분기조건을 확인해주세요.')
+            
+        return result    
         
-    # 캔들스틱용 데이터셋 생성
-    total_ohlc = data[start:end].resample(rule).ohlc()
-    total_median = data[start:end].resample(rule).median()
-    total_median_MA2 = total_median.rolling(2).mean() 
-    total_median_MA4 = total_median.rolling(4).mean()
+    else : 
+         print("피처파트 입력값이 유효하지 않습니다. ['wholeMarket', 'primaryMarket', 'secondaryMarket', 'userAddress'] 에서 하나를 입력하세요")   
 
-    # 조건별 그래프 생성 함수 호출
-    if option == 'all':
-        for i in range(0, len(total_ohlc.columns), 4):
-            j = i//4 # location에서는 연산안됨
-            col_data = total_ohlc[total_ohlc.columns[i][0]] # 멀티 칼럼이라 그래프 만들기 복잡해진다, 피처(상위칼럼)별로 데이터를 따로 빼주자
-            candlestick(total_ohlc, total_median, total_median_MA2, total_median_MA4, col_data, i, j)
-    elif option == 'test':
-        i = 0
-        j = i//4 # location에서는 연산안됨
-        col_data = total_ohlc[total_ohlc.columns[i][0]]
-        candlestick(total_ohlc, total_median, total_median_MA2, total_median_MA4, col_data, i, j)
-    else :
-        print("data와 rule, option(all or test), start(유효한 date index를 입력)를 입력하세요")
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [함수] 캔들스틱 실행기
+
+# COMMAND ----------
+
+#  캔들스틱 실행 함수
+def candle(data, category, part, rule, start, end):
+    # 입력값 유효성 체크
+    if category in ['all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility']:
+
+        # 조회할 칼럼리스트 생성 : 카테고리 및 피처파트  분류기 호출
+        col_list = category_part_classifier(category, part)
+
+        # 캔들스틱용 데이터셋 생성 함수 호출
+        total_ohlc, total_median, total_median_MA2, total_median_MA4 = candleTransform(data, rule, start, end)
+
+        # 캔들스틱 생성 함수 호출
+        for col in col_list:
+            candlePlot(total_ohlc, total_median, total_median_MA2, total_median_MA4, col, rule)
+
+    else : 
+         print("카테고리 입력값이 유효하지 않습니다. 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility' 에서 하나를 입력하세요")      
         
 
 # COMMAND ----------
 
-# 반기로 바꿔도 2020년도까지는 값을 보기 어렵다.  로그변환할 수는 없고.. 축기준에 맞도록 범위 조정필요
-candle(total, '2Q', 'test', '2017-06', '2022-02')  # 전체일자를 보려면 start인자에 0 입력,
-
-# COMMAND ----------
-
-candle(total, 'M', 'test', '2017-6', '2017-12') 
-
-# COMMAND ----------
-
-candle(total, 'Q', 'test', '2018', '2020') 
-
-# COMMAND ----------
-
-candle(total, 'Q', 'test', '2021','2021') 
-
-# COMMAND ----------
-
-candle(total, 'M', 'test', '2022', '2022') 
+# MAGIC %md
+# MAGIC #### [함수] 캔들스틱 차트 생성기
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 5. 리샘플링 데이터 정규화
+# MAGIC #### 2017년도 분석
+# MAGIC - 다른 카테고리의 데이터가 포함되지 않아 갭이 크다. 막 시장이 시작되는 단계
+# MAGIC -  Monthly 기준 17년 12월 급등, 
+# MAGIC     - 판매 수 : .2만에서 76.3만으로 25배 이상 급상승, 중위값 57만으로 높은 수준, MA2, Ma4는 낮은데 갑자기 변동이 커서 그런것
+# MAGIC     - 판매 가치 : Monthly 기준, 23.2만달러 에서 3천4백만달러로 148배 급상승, 중위값 2천만달러로 높은 수준, 
+# MAGIC     - 평균 가격 : 해석 불가
+
+# COMMAND ----------
+
+candle(total, 'all', 'wholeMarket', 'M', '2017', '2017') # data(raw), category, part, rule, start, end
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 로그 변환
+# MAGIC #### 2018~20년도 분석
+# MAGIC - art, metaver등 다양한 데이터가 취합되고, 수많은 프로젝트가 생기며 시장이 커지는 단계
+# MAGIC -  2Q 기준 꾸준히 상승 
+# MAGIC     - 판매 수 : 연초 77만에서 연말 5.2백만으로 약 6배 상승, 연말에 open/close 값이 작아지는 것으로 보아 성장폭이 다소 둔해진듯
+# MAGIC     - 판매 가치 : 3천4백만에서 1억6천2백만으로 약 5배 상승
+# MAGIC     - 평균 가격 : 연초 44불에서 계속 하락하다가 20년 3분기경에 반등하여 연말 31달러마감, 메타버스 매매가 활발했던 시기(평단가 높음)
 
 # COMMAND ----------
 
-totalQ_avg = total.resample(rule='Q').mean()
-totalQ_avg_log = totalQ_avg.copy()
-totalQ_avg_log = np.log1p(totalQ_avg_log)
-totalQ_avg_log.describe()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 스케일링
-# MAGIC - 모형을 유지할 수 있고, 정규분포가 아니므로 min-max scaler가 적합
-# MAGIC https://ysyblog.tistory.com/217
-
-# COMMAND ----------
-
-from sklearn.preprocessing import MinMaxScaler
-minmax_scaler = MinMaxScaler()
-totalQ_avg_log_scaled = totalQ_avg_log.copy()
-totalQ_avg_log_scaled.iloc[:,:] = minmax_scaler.fit_transform(totalQ_avg_log_scaled)
-totalQ_avg_log_scaled.describe()
+candle(total, 'all', 'wholeMarket', '2Q', '2018', '2020') # data(raw), category, part, rule, start, end
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 6. 인터렉티브 시각화(비교)
-# MAGIC - 분기 기준 고정
-# MAGIC - 추세 비교 그래프
-# MAGIC - 비중 비교 그래프
+# MAGIC #### 2021~22년초 분석
+# MAGIC - NFT 거래 이슈(디지털미술품 등), 21년말 메타버스 관심증대(페이스북 사명변경) 등으로 대중 시장에 관심이 시작되는 단계
+# MAGIC -  Q기준, 21년 4Q 급등, 22년초 급등
+# MAGIC     - 판매 수 : 21년 연초 5.2백만에서  연말 2천6백만으로 약 5배 급등, 22년초는 아직 2/22까지로 분기값이 모두 없음에도 3천5백만으로 상승 추세
+# MAGIC         - 특이사항 : 21년 3분기경 급등하는 현상 있었음, 게임 판매수 급등 원인
+# MAGIC     - 판매 가치 : 1억6천2백만에서 15.5B(155억달러) 으로 95배 상승,22년초 22.2B로 계속 상승중
+# MAGIC     - 평균 가격 : 연초 31달러에서 연말 580달러로 급등(art 매매 활발 원인), 22년초 624달러로 상승중
+
+# COMMAND ----------
+
+candle(total, 'all', 'wholeMarket', 'Q', '2021', '2022') # data(raw), category, part, rule, start, end
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Category base
+# MAGIC ## 카테고리별 비교(추세 및 비중)
+# MAGIC ### 요약 종합
+# MAGIC - 카테고리 전반, sales는 1차시장이 높지만(6-70%) sales_usd는 2차 시장이 '매우' 높음(7-90%)
+# MAGIC     - 창작자의 새로운 작품 거래가 활발하지만, 2차시장에서 재거래가 많이 이루어지며 가치가 급등하기 때문
+# MAGIC 
+# MAGIC - 카테고리 전반, 대부분 21년 중후반에 큰변동기가 있었음
+# MAGIC     - 21년 8월 런던포크(가스피 시스템 개선, ether burn), & plant vs undead 출시(뜨는 게임인듯, 추천)
+# MAGIC 
+# MAGIC - 카테고리 전반, 구매자가 6~70%수준으로 높음
+# MAGIC     - utiliy만 90%수준, 1차시장도 90% 수준이며 sales_usd도 아직 1차시장이 더 높음, 아직 생성되어가는 시장으로 보임, Defi도 아직 걸음마 단계
+# MAGIC     - 구매자가 판매자보도 소폭높으므로 앞으로도 거래는 활발하고 가격이 상승될 것으로 전망
 
 # COMMAND ----------
 
@@ -535,13 +630,10 @@ totalQ_avg_log_scaled.describe()
 # COMMAND ----------
 
 # 카테고리 분류기
-
 def category_classifier(data, category):
     col_list = []
     for i in range(len(data.columns)):
-        if category == 'total':
-            return category
-        elif data.columns[i].split('_')[0] == category:
+        if data.columns[i].split('_')[0] == category:
             col_list.append(data.columns[i])
         else :
             pass
@@ -558,7 +650,7 @@ import plotly.express as px
 
 def lineC(data, category):
     # 입력 유효성 체크
-    if category in ['total', 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility']:
+    if category in ['all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility']:
         # 카테고리 분류기 호출
         col_list = category_classifier(temp, category)
         # 라인차트 정의
@@ -566,14 +658,88 @@ def lineC(data, category):
             fig = px.line(data[col_list])     
         fig.layout = dict(title= f'{category}카테고리별 피처 *추세* 비교')
         fig.show()    
+    else : 
+        print("카테고리를 입력하세요, 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility'")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### [함수] 카테고리별 피처파트 분류기
+
+# COMMAND ----------
+
+# 카테고리 및 피처파트  분류기 함수
+def category_part_classifier2(category, part):
+    
+    # 피처파트 입력값 유효성 체크
+    if part in ['sales', 'sales_usd', 'user']:
+
+        # 피처파트별,  카테고리 + 파트칼럼을 합쳐 조회할 칼럼명 생성
+        col_list = []
+        if part == 'sales':
+            for col in ['primary_sales', 'secondary_sales']:
+                col_list.append(category + '_' + col)
+                result = col_list
+        elif part == 'sales_usd':
+            for col in ['primary_sales_usd', 'secondary_sales_usd']:
+                col_list.append(category + '_' + col)
+                result = col_list
+        elif part == 'user':
+            for col in ['unique_buyers', 'unique_sellers']:
+                col_list.append(category + '_' + col)
+                result = col_list
+        else :
+            print('입력값 또는 분기조건을 확인해주세요.')
+            
+        return result    
         
     else : 
-        print("카테고리를 입력하세요, ['total', 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility'")
+         print("피처파트 입력값이 유효하지 않습니다. ['sales', 'sales_usd', 'user'] 에서 하나를 입력하세요")   
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### [함수] 카테고리별 주요피처 누적영역차트 생성기
+
+# COMMAND ----------
+
+# 누적 영역 차트 함수 생성
+import plotly.express as px
+import plotly.graph_objects as go
+
+def stackareaC(data, category, part):
+    # 입력 유효성 체크
+    if category in ['all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility']: # 누적차트에서는 all 카테고리 제외
+        
+        # 피처파트 분류기 호출
+        col_list= category_part_classifier2(category, part)
+        
+        # 누적영역차트 정의
+        fig = go.Figure()
+        for j in range(len(col_list)):
+            fig.add_trace(go.Scatter(
+                x = data[col_list[j]].index,
+                y = data[col_list[j]].values,
+                hoverinfo='x+y',
+                mode='lines',
+                line=dict(width = 0.5),
+                stackgroup='one',
+                groupnorm='percent',
+                name = col_list[j]
+            ))
+        fig.layout = dict(title= f'{category}카테고리별 {part}피처파트별 *비중* 비교')
+        fig.update_layout(showlegend=True, yaxis=dict(range=[1, 100], ticksuffix='%'))
+        fig.show()
+    else : 
+        print("카테고리를 입력하세요,'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility'")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### all 카테고리
+# MAGIC - sales : 1차 시장 50% 수준, 감소세
+# MAGIC - sales_usd : 2차 시장 80% 수준(21년 하반기 급증)
+# MAGIC - user : 구매자수 70% 수준
 
 # COMMAND ----------
 
@@ -581,8 +747,23 @@ lineC(totalQ_avg_log_scaled, 'all')
 
 # COMMAND ----------
 
+stackareaC(totalQ_avg, 'all', 'sales')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'all', 'sales_usd')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'all', 'user')
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### collectible 카테고리
+# MAGIC - sales : 1차시장  6~70% 수준 유지중
+# MAGIC - sales_usd : 2차 시장 85% (21년 후반 60%수준에서 급등)
+# MAGIC - user : 구매자 70% 수준 유지중
 
 # COMMAND ----------
 
@@ -590,8 +771,23 @@ lineC(totalQ_avg_log_scaled, 'collectible')
 
 # COMMAND ----------
 
+stackareaC(totalQ_avg, 'collectible', 'sales')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'collectible', 'sales_usd')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'collectible', 'user')
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### art 카테고리
+# MAGIC - sales : 1차시장 60% 수준
+# MAGIC - saled_usd : 2차 시장 70% 수준(21년 후반 40%수준에서 급등)
+# MAGIC - user : 구매자 60% 수준 유지중
 
 # COMMAND ----------
 
@@ -599,8 +795,23 @@ lineC(totalQ_avg_log_scaled, 'art')
 
 # COMMAND ----------
 
+stackareaC(totalQ_avg, 'art', 'sales')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'art', 'sales_usd')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'art', 'user')
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### metaverse 카테고리
+# MAGIC - sales : 1차시장 60% 수준(감소세)
+# MAGIC - saled_usd : 2차 시장80%수준(19년 급등 이후 계속 증가세)
+# MAGIC - user : 구매자 70% 수준으로 소폭 하향세
 
 # COMMAND ----------
 
@@ -608,8 +819,23 @@ lineC(totalQ_avg_log_scaled, 'metaverse')
 
 # COMMAND ----------
 
+stackareaC(totalQ_avg, 'metaverse', 'sales')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'metaverse', 'sales_usd')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'metaverse', 'user')
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### game 카테고리
+# MAGIC - sales : 1차 시장 50% 수준(20년 급락이후 보합세)
+# MAGIC - saled_usd : 2차 시장 90% 수준(19년 , 21년 급등이후 증가세)
+# MAGIC - user : 구매자 60%수준으로 보합세
 
 # COMMAND ----------
 
@@ -617,8 +843,23 @@ lineC(totalQ_avg_log_scaled, 'game')
 
 # COMMAND ----------
 
+stackareaC(totalQ_avg, 'game', 'sales')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'game', 'sales_usd')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'game', 'user')
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### utility 카테고리
+# MAGIC - sales : 1차시장 90%로 유지중
+# MAGIC - saled_usd : 2차 시장이 40%수준으로 증가세
+# MAGIC - user : 구매자 90% 수준
 
 # COMMAND ----------
 
@@ -626,8 +867,23 @@ lineC(totalQ_avg_log_scaled, 'utility')
 
 # COMMAND ----------
 
+stackareaC(totalQ_avg, 'utility', 'sales')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'utility', 'sales_usd')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'utility', 'user')
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### DeFi 카테고리
+# MAGIC - sales : 1차시장 45%수준(21년중순부터 급감)
+# MAGIC - saled_usd : 2차 시장 85%수준(21년 중순부터 급등)
+# MAGIC - user : 구매자 65%수준 유지중(21년 중순부터 감소)
 
 # COMMAND ----------
 
@@ -635,11 +891,23 @@ lineC(totalQ_avg_log_scaled, 'defi')
 
 # COMMAND ----------
 
+stackareaC(totalQ_avg, 'defi', 'sales')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'defi', 'sales_usd')
+
+# COMMAND ----------
+
+stackareaC(totalQ_avg, 'defi', 'user')
+
+# COMMAND ----------
+
 # MAGIC %md
-# MAGIC ## Feature base
+# MAGIC ## 피처별 비교(추세, 비중)
 # MAGIC - active_market_wallets, average_usd, number_of_sales, primary_sales, primary_sales_usd, sales_usd, secondary_sales, secondary_sales_usd, unique_buyers, unique_sellers
 # MAGIC ---
-# MAGIC ### 카테고리별 종합
+# MAGIC ### 요약 종합
 # MAGIC - 사용자 관점
 # MAGIC   - 구매자/판매자 모두 초기는 콜렉션, 현재는 게임이 과반수
 # MAGIC - 시장 가치 관점
@@ -889,42 +1157,35 @@ stackareaF(totalQ_avg, 'unique_sellers')
 
 # MAGIC %md
 # MAGIC # 7. EDA 종합 및 결론
-# MAGIC ## 1. (가정)NFT마켓에서는 최소 3개이상의 큰변곡점이 있을 것이고, 이는 전체 피처에 영향을 줬을 것이다.
-# MAGIC --> all 카테고리 피처별 추세 비교 결과, 4개의 큰 변곡점이 있다.
-# MAGIC --> 해당 기간에 대한 NFT마켓 히스토리 리서치 결과 000 히스토리가 확인되었다.
-# MAGIC --> 2018년도부터 비교해야할 듯(아트,메타버스 등 대부분의 데이터들이 18년도부터 포함됨)
+# MAGIC ## [가설1] NFT마켓에서는 최소 3개이상의 큰변곡점이 있을 것이고, 이는 전체 피처 및 시장에 영향을 줬을 것이다.
+# MAGIC - all 카테고리 피처별 추세 비교 결과, 4개의 큰 변곡점이 있음을 확인
+# MAGIC - 해당 기간에 대한 NFT마켓 히스토리 리서치 결과
+# MAGIC   - 17년말 특이사항
+# MAGIC     - 17년 10월 크립토키티(erc721) 출시되며 이더NFT가 세상에 알려지기 시작, 실제로 크립토 키티 인기로 인해 이더네트워크 정체 발생, TX사상 최고치 기록, 속도 크게 저하, 이더리움 트래픽 25%를 차지
+# MAGIC     - 17년 12월 오픈씨 출시
+# MAGIC     - 18년도부터 art, metavers등 주요 데이터 추가
+# MAGIC   - 18년-20년 특이사항
+# MAGIC     - NFT 캄브리아기로 시장 성장세, 100개 이상 프로젝트가 생겨나고 암호화폐지갑으로 온보딩이 쉬워짐, axi infinity등 유명 Dapp 플랫폼 및 프로젝트 출시
+# MAGIC   - 21년중 특이사항
+# MAGIC     - 이더리움 런던포크(수수료 시스템 개편, ether burnt)
+# MAGIC     - plant vs undead 게임 출시
+# MAGIC     - 주요 마켓플레이스인 오픈시에서 무료 NFT발행 서비스 시작(폴리곤 추정)
+# MAGIC   - 22년초 특이사항 **(현재 캐즘전 단계로 추정)**
+# MAGIC     - 세간의 이목을 끄는 미술품 등 NFT 판매와, 페이스북 사명변경등으로 메타버스시대, NFT에 대한 대중의 관심 증대
 # MAGIC 
-# MAGIC ## 2. (가정)전체 시장가치와 평균가치(평단가)와의 갭이 큰 것은 소수 판매수가 평단가를 끌어올리기 때문이다
-# MAGIC --> all카테고리 2Q 히스토그램 분포 파악 결과, 범주1보다  최소 6배~10배가 높은 범주 3가 있었다.
-# MAGIC --> 피처별 카테고리 비중 비교를 위한 누적영역 그래프에서 더욱 자세히 알 수 있다.
 # MAGIC 
-# MAGIC ## 3. (가정) 2차 시장이 1차시장보다 더 판매수가 많지만, 1차 시장가치가 2차보다 2배가 높은 것으로 보아, 시장에 따른 특성이 있을 것이다. 그리고 추이 변동도 있을 것이다.
-# MAGIC --> all카테고리의 시장비중 비교그래프를 보면,
-# MAGIC 판매수는 초기에 1차가 60%로 많았으나 점차 비등한 추세로 감소하고 있고
-# MAGIC 시장가치는 초기에 1차가 과반수로 많았으나 현재는 2차가 80%로 대다수를 차지한다.
-# MAGIC --> 이상한데 이건 확인 필요함
+# MAGIC ## [가설2]전체 시장가치와 평균가치(평단가)와의 갭이 큰 것은 소수 판매수가 평단가를 끌어올리기 때문이다
+# MAGIC - all카테고리 2Q 히스토그램 분포 파악 결과, 범주1보다  최소 6배~10배가 높은 범주 3가 있음, 갭이 매우 크다.
+# MAGIC - 피처별 카테고리 비중 비교를 위한 누적영역 그래프에서 더욱 자세히 알 수 있다.
 # MAGIC 
-# MAGIC ## 4. 사용자 분포 관점창작자(구매 only), 수집가(판매 only), 투자자(구매+판매) 별 특징에 따른 카테고리별 시장 활성화 여부를 알 수 있을 것이다.
-# MAGIC --> 현데이터에서는 사용자를 구분할 수 없다.
-# MAGIC --> 다만 카테고리별로 구매/판매 비중을 통한 추정정도는 가능하다.
-# MAGIC --> all기준 비중이 유사하면서 buyer가 더 많으므로 매매가 활발하고 가격이 계속 오를 것으로 보인다.
-# MAGIC ㄴ 특이사항으로 메타버스, utility 등은 sell이 압도적으로 적은 케이스는 매매 자체가 활성화 되지 않을 수 있다. art는 구매/판매자수 비중이 비슷함.
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC # EDA 보강해야할일 
-# MAGIC - 캔들스틱, 주요 피처들을 구간별로 비교하기 2018-2020, 2021, 2022 1Q
-# MAGIC - 1차/2차 시장, 구매자/판매자 비교 그래프 만들기 (2018년 도 부터보자)
-# MAGIC ㄴ  3번가정에 대한 기초통계와 분포그래프다 다른 원인 찾기
-# MAGIC - 상관분석
-# MAGIC - 모델링 피처 셀렉션
-# MAGIC   - all카테고리 기준에서 2022년도 1분기 시장규모 예측하기(평단가+판매수)?
-# MAGIC   - 음.. 이건 다변량으로 분석해야 함.. 단변량으로 할 수 있는 건...
-# MAGIC   -  모르겠다. 시계열 패턴이 있는지 모르겠어서 시계열 예측이 유의미 할지 모르겠음
-# MAGIC   - 그래서 전체 피처를 시계열검증/분해 과정을 함수로 돌려 가장 시계열특성이 높은 피처를 선정하여 예측 하는 것은 어떨까? 
-# MAGIC # 모델링
-# MAGIC - 시계열 검증, 분해, 모델 예측
+# MAGIC ## [가설3] 2차 시장이 1차시장보다 더 판매수가 많지만, 1차 시장가치가 2차보다 배가 높은 것으로 보아, 재판매로 인한 가치 상승과 시장에 따른 특성 때문일 것이다.
+# MAGIC - 실제대로 모든 카테고리가 유사한 현상을 보이고 있다. 이는 재판매로 인한 투자거래로서 가치가 있다는 뜻
+# MAGIC - 생각보다 1차 시장(창작자) 직접 거래 규모가 크다
+# MAGIC 
+# MAGIC ## [가설4] 사용자 분포 관점창작자(구매 only), 수집가(판매 only), 투자자(구매+판매) 별 특징에 따른 카테고리별 시장 활성화 여부를 알 수 있을 것이다.
+# MAGIC - 현데이터에서는 사용자를 구분할 수 없다. 다만 카테고리별로 구매/판매 비중을 통한 추정정도는 가능하다.
+# MAGIC - all기준 비중이 유사하면서 buyer가 소폭 많으므로 매매가 활발하고 가격이 계속 오를 것으로 보인다. 실제로 2차 시장의 가치가 훨씬더 높다. 앞으로도 NFT거래 활성화 전망이 좋음.
+# MAGIC - 일부 메타버스, utility 등 구매자와 사용자 비중이 한쪽으로 치우친 사례는 거래활동성이 매우 낮을 것으로 전망됨
 
 # COMMAND ----------
 
@@ -938,14 +1199,13 @@ stackareaF(totalQ_avg, 'unique_sellers')
 
 # COMMAND ----------
 
-# 음 이게 아닌듯... 피처별로 자기 상관 계수 검증하는 방식으로 가야할듯
- # 특정일자에 따른 히트맵은 그릴 수 있을지 않을까?
-  correl() 먼저 해야함
-
-# COMMAND ----------
-
 # MAGIC %md
-# MAGIC ## 카테고리별 피처 상관분석
+# MAGIC ## ALL카테고리 피처별 상관분석
+# MAGIC - 정규화를 안한 데이터 분석이 더 정확함
+# MAGIC - 전반적으로 서로 상관관계가 높게 나오는데, 파생변수들이 섞였기 때문, 이를 제외하고 다시 보자.
+# MAGIC   - average_usd는 예상대로 다른 피처들과 상관관계가 없음 -> 사람들이 임의로 가치를 올리기 때문, 가격예측 불가
+# MAGIC   - sales_usd는 상관관계가 높으나, sales에 avg_usd가 계산된 파생 변수임 -> 예측에 적절하지 않음 제외
+# MAGIC   - market_wallt 또한 buyer와 seller의 파생변수이므로 상관성이 매우 높게 나옴
 
 # COMMAND ----------
 
@@ -958,39 +1218,60 @@ def heatmapC(data, category):
 
 # COMMAND ----------
 
-totalQ_avg_log_scaled.tail()
+heatmapC(totalQ_avg, 'all')
 
 # COMMAND ----------
 
-test = totalQ_avg_log_scaled.copy()
-test = test.reset_index().iloc[:,1:]
-test
+heatmapC(totalQ_avg_log, 'all')
 
 # COMMAND ----------
 
-# avg usd는 낮다, 이것과 연관된 피처들은 모두 뺴야함, 시장규모 같은.
-# 남은 피처는 wallet, buyer, seller, sales(whole, first, second)
-# 파생피처 빼면, buyer, seller, first sales, second sales, . 이렇게 4개 가 나옴
-# 위 4개를 분석해야함 아니면, all wallet vs all sales로 하던가
-# 그래 사용자 수를 예측하자. 결국 판매수로 사용자수 증대 영향을 받을 테니.
-# 솔직히 안될것 같긴한데.. 실제로 2월이후 감소한것도 같고...외부 요인이 크니까..
-# 그래도 배운거지, 외부 데이터랑 상관관계를 한번봐볼까?, 그래서 이후에는 다변량으로 외부데이터를 포함해서 보고싶다? 아니 주식같은 데이터는 예측이 어렵다?
-# 상관성, 시계열 패턴까지 해봐야 분석이 가능할지안할지 알수있지 않을까.
-# 결론은 파악해보니 이데이터는 미래를 예측할 수 없는 데이터다. 외부 데이터 영향이 크다. 그리고 시계열 예측에 적합하지 않다. 이런식으로 결론을 내릴수 있으려나?
-heatmapC(test, 'all')
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-heatmapC(totalQ_avg_log_scaled, 'all', 2021-12-31) # 전체일자를 보려면 index인자에 0 입력
+heatmapC(totalQ_avg_log_scaled, 'all')
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 히트맵 : 상관분석
+# MAGIC ## ALL카테고리 주요피처 상관분석1
+# MAGIC - 1차 시장은 상관관계가 낮게 나옴, 신기하네 왜일까? , 사용자수 대부분이 2차 시장 사용자 일지도?
+
+# COMMAND ----------
+
+import plotly.express as px
+
+category_list = ['all_unique_buyers', 'all_unique_sellers', 'all_primary_sales', 'all_secondary_sales']
+fig = px.imshow(totalQ_avg_log_scaled[category_list].corr())
+fig.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ALL카테고리 주요피처 상관분석2
+# MAGIC - 사용자수, 판매수, 시장가치, 대표 3피처 분석시, 예상대로 usd는 낮게 나옴
+
+# COMMAND ----------
+
+import plotly.express as px
+
+category_list = ['all_active_market_wallets','all_number_of_sales', 'all_sales_usd']
+fig = px.imshow(totalQ_avg_log_scaled[category_list].corr())
+fig.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 상관분석 요약 종합 및 피처 셀렉션
+# MAGIC - average_usd, sales_usd는 상관관계가 낮음(인위적인 가치 부여로 예측 불가)
+# MAGIC - primary sales는 사용자수와 상관관계가 낮음(현재 사용자 수의 시장 분포를 알수 없어서 원인 파악 불가)
+# MAGIC - 위 상관관계가 낮은 피처와 그 파생변수들을 제외하면, "사용자수(구매/판매/합계)"와 "판매수(1차/2차/합계)" 가 남음
+# MAGIC - 이 경우, "합계"피처가 다른 피처들과 상관성이 높게 나오므로 active_market_wallets 와 number_of_sales 로 추릴 수 있는데, 1차 시장의 상관성이 낮았으므로
+# MAGIC ## 최종적으로 전체 피처들과 두루 상관성이 높아 예측효용성이 높은 피처는 "전체 사용자 수"로 결정한다.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 피처 예측 가설 설정(단변량 모델링 기준)
+# MAGIC - 외부 요인이 클 것 같긴 하지만.. 다변량은 다음에 하고..
+# MAGIC - 시계열 패턴이 있을지 모르겠어서 예측이 유의미 할지 모르겠지만, 일단 해보자.
 
 # COMMAND ----------
 
@@ -999,3 +1280,20 @@ heatmapC(totalQ_avg_log_scaled, 'all', 2021-12-31) # 전체일자를 보려면 i
 # COMMAND ----------
 
 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 시계열 검증, 분해, 모델 예측
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 시계열 모델링
+# MAGIC - arima, 지수평활법, prophet
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 모델 평가 및비교
+# MAGIC - arima, 지수평활법, prophet
