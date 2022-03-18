@@ -738,7 +738,6 @@ box(total, 'all', 'wholeMarket', 'year_month', '2021', '2022')
 # 카테고리 분류기
 def category_classifier(data, category):
     col_list = []
-    print(data)
     for i in range(len(data.columns)):
         if data.columns[i].split('_')[0] == category:
             col_list.append(data.columns[i])
@@ -1327,7 +1326,7 @@ def heatmapC(data, category):
     fig = px.imshow(z, 
                     width = 800,
                     height = 800 ,
-#                     text_auto=True, # 5.5 plotly 설치해야함, 안됨...ㅜ
+#                     text_auto=True, # 5.5 plotly 설치햇는데도 안됨...ㅜ
                     range_color=[-1,1],
                     color_continuous_scale=["red", "yellow",  "white", "green", "blue"])
     fig.show()
@@ -1339,6 +1338,28 @@ heatmapC(totalM_median, 'all')
 # COMMAND ----------
 
 heatmapC(totalM_median_log, 'all')
+
+# COMMAND ----------
+
+import plotly.graph_objects as go
+import plotly.express as px
+
+def heatmapC1(data, category):
+    col_list = category_classifier(data, category)
+    z = data[col_list].corr()
+    fig = go.Figure()
+#     fig = ff.create_annotated_heatmap(z, annotation_text=True)
+    fig = px.imshow(z, 
+#                     width = 800,
+#                     height = 800,
+                   color_continuous_scale = 'Blues', aspect='auto') # RdBu
+#                     text_auto=True, # 5.5 plotly 설치햇는데도 안됨...ㅜ)
+                   
+    fig.show()
+
+# COMMAND ----------
+
+heatmapC1(totalM_median_log, 'all')
 
 # COMMAND ----------
 
@@ -1368,11 +1389,10 @@ def heatmapF(data, feature):
     fig = go.Figure()
 #     fig = ff.create_annotated_heatmap(z, annotation_text=True)
     fig = px.imshow(z, 
-                    width = 800,
-                    height = 800 ,
+#                     width = 800,
+#                     height = 800 ,
 #                     text_auto=True, # 5.5 plotly 설치해야함, 안됨...ㅜ
-                    range_color=[-1,1],
-                    color_continuous_scale=["red", "yellow",  "white", "green", "blue"])
+                    color_continuous_scale="Blues", aspect='auto')
     fig.show()
 
 # COMMAND ----------
