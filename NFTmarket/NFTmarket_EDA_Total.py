@@ -282,22 +282,23 @@ def box_plot(data):
 
 # MAGIC %md
 # MAGIC ## 데이터 리샘플링
-# MAGIC - 일 -> 반기(월단위는 분포 비교 어렵고, 1분기도 여전히 범주가 많다)
+# MAGIC - 판다스 시계열구간 집계(통계용어 복원추출 아님)
+# MAGIC - 일 -> 월.중위값
 
 # COMMAND ----------
 
 # 반기단위 리샘플링, 딱 조으다
-total2Q_avg = total.resample(rule='2Q').mean()
-total2Q_avg
+totalM_median = total.resample(rule='M').median()
+totalM_median.head()
 
 # COMMAND ----------
 
 # 반기 값 맞는지 체크
-total['all_active_market_wallets']['2017-7':'2017-12'].mean()
+total['all_active_market_wallets']['2017-7':'2017-7'].median()
 
 # COMMAND ----------
 
-total2Q_avg.describe(include='all')
+totalM_median.describe(include='all')
 
 # COMMAND ----------
 
@@ -311,10 +312,8 @@ total2Q_avg.describe(include='all')
 
 # COMMAND ----------
 
-totalQ_avg = total.resample(rule='Q').mean()
-totalQ_avg_log = totalQ_avg.copy()
-totalQ_avg_log = np.log1p(totalQ_avg_log)
-totalQ_avg_log.describe()
+totalM_median_log = np.log1p(totalM_median)
+totalM_median_log.describe()
 
 # COMMAND ----------
 
@@ -327,9 +326,9 @@ totalQ_avg_log.describe()
 
 from sklearn.preprocessing import MinMaxScaler
 minmax_scaler = MinMaxScaler()
-totalQ_avg_log_scaled = totalQ_avg_log.copy()
-totalQ_avg_log_scaled.iloc[:,:] = minmax_scaler.fit_transform(totalQ_avg_log_scaled)
-totalQ_avg_log_scaled.describe()
+totalM_median_log_scaled = totalM_median_log .copy()
+totalM_median_log_scaled.iloc[:,:] = minmax_scaler.fit_transform(totalM_median_log_scaled)
+totalM_median_log_scaled.describe()
 
 # COMMAND ----------
 
@@ -337,7 +336,7 @@ totalQ_avg_log_scaled.describe()
 # MAGIC # 6. 변환 데이터 시각화
 # MAGIC - Histogram : 분포 체크, 2Q_avg
 # MAGIC - Line : 추세 체크, 2
-# MAGIC - Candle Stick : 분위수 체크
+# MAGIC - Candle Stick : 변동폭 체크
 # MAGIC - Stack Area : 비중 체크 
 
 # COMMAND ----------
@@ -346,72 +345,14 @@ totalQ_avg_log_scaled.describe()
 # MAGIC ### 히스토그램 : 분포 체크
 # MAGIC 
 # MAGIC ### 요약
-# MAGIC - 전체시장관점에서 크게 2회의 큰변동구간이 있다. -> 이벤트 확인 필요
-# MAGIC - 1차/2차시장관점 판매수에서 크게 3회의 큰변동구간이 있다. -> 이벤트 확인 필요
-# MAGIC - 사용자 관점도 위와 상동 -> 위 주요 2~3개의 이벤트가 모두 동일하게 영향이 있을 것이다.(가정) 
-# MAGIC 
-# MAGIC ---
-# MAGIC ### 전체 시장 관점
-# MAGIC - all_number_of_sales : 반기평균기준, 약 1천만 정도 판매수 발생(최근 반기로 추정)
-# MAGIC   - 범주1 : 80 ~ 327만, 5.052
-# MAGIC   - 범주2 : 327만 ~ 654만, 3.871
-# MAGIC   - 범주3 : 981만 ~1308만, 0.928
-# MAGIC 
-# MAGIC - all_average_usd : 반기평균기준, 적게는 약 100불 전후 크게는 약 600불 정도의 가격대 형성
-# MAGIC   - 범주1 : 23.7 ~ 83.2, 6.996
-# MAGIC   - 범주2 : 83.2 ~ 142.8, 1.918
-# MAGIC   - 범주3:  559.6 ~  619.2,1.988
-# MAGIC 
-# MAGIC - all_sales_usd : 반기평균기준, 시장가치규모가 19억에서 최근 10배로 상승
-# MAGIC   - 범주1 : 4.47백만 ~ 19.43억, 8.928
-# MAGIC   - 범주2 : 77.73억 ~ 97.17억, 0.901
-# MAGIC   - 범주3 : 174.91억 ~ 194.34억, 1.009
-# MAGIC ---
-# MAGIC ### 1차/2차시장 관점
-# MAGIC - all_primary_sales
-# MAGIC   - 범주1 : 0 ~ 165만, 4.032
-# MAGIC   - 범주2 : 165만 ~330만, 3.913
-# MAGIC   - 범주3 : 330만 ~ 495만, 1.001
-# MAGIC   - 범주4 : 660만 ~ 825만, 0.917
-# MAGIC   - 범주5 : 1485만 ~ 1650만, 1.011
-# MAGIC 
-# MAGIC - all_primary_sales_usd
-# MAGIC   - 범주1 : 0 ~ 3.62억, 8.913
-# MAGIC   - 범주2 : 18.1억 ~ 21.72억, 0.904
-# MAGIC   - 범주3 : 32.58억 ~ 36.2억, 1.015
-# MAGIC 
-# MAGIC - all_secondary_sales
-# MAGIC   - 범주1 : 80 ~ 1.62백만, 6.974
-# MAGIC   - 범주2 : 1.62백만 ~ 3.24백만, 1.979
-# MAGIC   - 범주3 : 4.86백만 ~ 6.48백만, 0.904
-# MAGIC   - 범주4 : 1.46천만 ~ 1.61천만, 1.006 
-# MAGIC 
-# MAGIC - all_secondary_sales_usd
-# MAGIC   - 범주1 : 4500~ 15.8억, 8.933
-# MAGIC   - 범주2 : 47.44억 ~ 63.25억, 0.909
-# MAGIC   - 범주3 : 142.32억 ~ 158.1억, 1.008
-# MAGIC ---
-# MAGIC ### 사용자 관점
-# MAGIC - all_active_market_wallets
-# MAGIC   - 범주1 : 약 34 ~ 27.7만,  8.91
-# MAGIC   - 범주2 : 약 83만 ~ 110만, 0.907
-# MAGIC   - 범주3 : 약 249만~ 277만, 1.006
-# MAGIC 
-# MAGIC - all_unique_buyers
-# MAGIC   - 범주1 : 18 ~ 25.3만, 8.027
-# MAGIC   - 범주2 : 25.3만 ~ 50.6만, 0.928
-# MAGIC   - 범주3 : 75.9만 ~ 101만, 0.909
-# MAGIC   - 범주4 : 228만 ~ 253만, 1.007 
-# MAGIC 
-# MAGIC - all_unique_sellers
-# MAGIC   - 범주1 : 17.8 ~ 13만, 8.92 
-# MAGIC   - 범주2 : 25.8만 ~ 38.8만, 0.926
-# MAGIC   - 범주3 : 116.4만 ~ 129.3만, 1.005
+# MAGIC - 각 시계열구간별 값의 갭이 너무 커서 한번에 보기 어려움, 로그변환해서 봐야함.
+# MAGIC - all카테고리 기준 눈에 띄는 분포는 많지 않음, 좌왜도가 매우 큼, 
+# MAGIC - 전체시장관점에서 크게 4개의 분포 경향이 있음 -> 최소 3개 이상의 큰 이벤트가 있었을 것 
 
 # COMMAND ----------
 
-# 데이터프로파일링에서 log 변환해서 볼 수 있음
-display(total2Q_avg)
+display(totalM_median)
+# display(totalM_median['2017':'2020'])
 
 # COMMAND ----------
 
@@ -435,15 +376,15 @@ display(total2Q_avg)
 
 # COMMAND ----------
 
-# chart에서 로그변환 할 수 있음, 귀찮아서 plotly 안바꿈
-temp = total2Q_avg.copy()
-temp['index'] = total2Q_avg.index
+# 데이터브릭스 display chart에서 로그변환 가능
+temp = totalM_median.copy()
+temp['index'] = totalM_median.index
 display(temp)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 캔들 스틱 : 분위수+추이 비교
+# MAGIC ### 캔들 스틱 : 변동성+추이 비교
 # MAGIC - 주식에서 많이 사용하는 캔들스틱 차트를 써보자
 # MAGIC - 17~20년와 21년도와의 차이가 큼, 21년도 기준으로분석하는게 유의미 해보임
 # MAGIC   - (콜렉션 데이터도 21년 4월~9월)
@@ -569,10 +510,10 @@ def candle(data, category, part, rule, start, end):
 # MAGIC %md
 # MAGIC #### 2017년도 분석
 # MAGIC - 다른 카테고리의 데이터가 포함되지 않아 갭이 크다. 막 시장이 시작되는 단계
-# MAGIC -  Monthly 기준 17년 12월 급등, 
-# MAGIC     - 판매 수 : .2만에서 76.3만으로 25배 이상 급상승, 중위값 57만으로 높은 수준, MA2, Ma4는 낮은데 갑자기 변동이 커서 그런것
+# MAGIC -  Monthly 기준 17년 12월 급등, 판매수와 판매가치는 급등했으나 반면에 평가격은 하락함, 저가비중이 많은 듯
+# MAGIC     - 판매 수 : 3.2만에서 76.3만으로 25배 이상 급상승, 중위값 57만으로 높은 수준, MA2, Ma4는 낮은데 갑자기 변동이 커서 그런것
 # MAGIC     - 판매 가치 : Monthly 기준, 23.2만달러 에서 3천4백만달러로 148배 급상승, 중위값 2천만달러로 높은 수준, 
-# MAGIC     - 평균 가격 : 해석 불가
+# MAGIC     - 평균 가격 : 7월 128달러로 고점을 찍고 11월까지 유지하다가 12월에 8로 급감, 감소추세
 
 # COMMAND ----------
 
@@ -590,7 +531,7 @@ candle(total, 'all', 'wholeMarket', 'M', '2017', '2017') # data(raw), category, 
 
 # COMMAND ----------
 
-candle(total, 'all', 'wholeMarket', '2Q', '2018', '2020') # data(raw), category, part, rule, start, end
+candle(total, 'all', 'wholeMarket', 'M', '2018', '2020') # data(raw), category, part, rule, start, end
 
 # COMMAND ----------
 
@@ -605,7 +546,172 @@ candle(total, 'all', 'wholeMarket', '2Q', '2018', '2020') # data(raw), category,
 
 # COMMAND ----------
 
-candle(total, 'all', 'wholeMarket', 'Q', '2021', '2022') # data(raw), category, part, rule, start, end
+candle(total, 'all', 'wholeMarket', 'M', '2021', '2022') # data(raw), category, part, rule, start, end
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 박스 플롯 : 분위수, 이상치 체크
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [함수] 박스플롯용 데이터셋 생성기
+
+# COMMAND ----------
+
+# 박스플롯 용 데이터셋 생성 함수(분류라벨, 리샘플링 변환 및 이동평균 데이터 생성)
+def boxTransform(data, rule, start, end):
+    boxData =  data[start:end].copy()
+    
+    if rule =='year_month':
+        boxData[rule] = (boxData.index).to_period('M').to_timestamp() # 'to_period는..그래프 x기준잡을 때 json시퀀스 에러남, 판다스 버그임 , 타임스탬프로 극복해야함
+        boxData_median = boxData.resample('M').median() # 바로 위 작업값이 적용이 안되네.. 아래에 새로 만들어야할듯  
+        boxData_median[rule] = (boxData_median.index).to_period('M').to_timestamp()
+        boxData_median_MA2 = boxData_median.rolling(2).mean() 
+        boxData_median_MA2[rule] = (boxData_median_MA2.index).to_period('M').to_timestamp()
+        boxData_median_MA4 = boxData_median.rolling(4).mean()
+        boxData_median_MA4[rule] = (boxData_median_MA4.index).to_period('M').to_timestamp()
+
+    elif rule =='year_quater':
+        boxData[rule] = (boxData.index).to_period('Q').to_timestamp()
+        boxData_median = boxData.resample('Q').median()
+        boxData_median[rule] = (boxData_median.index).to_period('Q').to_timestamp()
+        boxData_median_MA2 = boxData_median.rolling(2).mean() 
+        boxData_median_MA2[rule] = (boxData_median_MA2.index).to_period('M').to_timestamp()
+        boxData_median_MA4 = boxData_median.rolling(4).mean()
+        boxData_median_MA4[rule] = (boxData_median_MA4.index).to_period('M').to_timestamp()
+
+    else:
+        pass
+
+    return boxData, boxData_median, boxData_median_MA2, boxData_median_MA4
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [함수] 박스플롯용 IQR 값 생성기
+
+# COMMAND ----------
+
+# iqr 상한/하한값 생성 함수
+def outliers_iqr(data):
+    q1, q3 = np.percentile(data, [25, 75])
+    # 넘파이 값을 퍼센트로 표시해주는 함수
+    iqr = q3 - q1
+    lower_fence = q1 -(iqr*1.5) # 기본값
+    upper_fence = q3 +(iqr*1.5) # 기본값
+    min_list = []
+    max_list = []
+    # min whisker : 최소값, 또는 '중앙값 - 1.5 × IQR'보다 큰 데이터 중 가장 작은 값 
+    # max whisker :  최대값 또는 '중앙값 + 1.5 × IQR'보다 작은 데이터 중 가장 큰 값
+    for d in data:
+        if d <= upper_fence: max_list.append(d)
+        else : pass  
+        if d >= lower_fence: min_list.append(d)
+        else : pass     
+    lower_fence = min(min_list) # 체크 값이 유효하면 덮어쓰기
+    upper_fence = max(max_list)
+    
+    return lower_fence, upper_fence
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [함수] 박스플롯 그래프 생성기
+
+# COMMAND ----------
+
+# import plotly.graph_objects as go
+import plotly.express as px
+# 그래프 생성 함수
+def boxplot(data, data_median, median_MA2, median_MA4, rule, col, num, col_yax):
+    fig = px.box(data, x=rule, y=data[col], points='all', title=f'[{num}], {col}')
+    fig.add_scatter(x=data_median[rule], y = data_median[col], mode="lines", name ='Median(rule)')
+    fig.add_scatter(x=median_MA2[rule], y = median_MA2[col], mode="lines", name ='Median_MA2(rule)')
+    fig.add_scatter(x=median_MA4[rule], y = median_MA4[col], mode="lines", name ='Median_MA4(rule)')
+#     fig.add_trace(go.Scatter(x=data_median[rule], y=data_median[col], mode="lines", name="Median(rule)"))
+    fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+#     fig.update_yaxes( ticklabelposition="inside top", title=None)
+    fig.update_yaxes(range=[0,col_yax],  ticklabelposition="inside top", title=None)
+    fig.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [함수] 박스플롯 실행기
+
+# COMMAND ----------
+
+#  박스플롯 실행 함수
+def box(data, category, part, rule, start, end):
+    
+    # 입력값 유효성 체크
+    if category in ['all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility']:
+
+        # 조회할 칼럼리스트 생성 : 카테고리 및 피처파트  분류기 호출
+        col_list = category_part_classifier(category, part)
+        
+        # 박스플롯용 데이터셋 생성  호출
+        boxData, boxData_median, boxData_median_MA2, boxData_median_MA4 = boxTransform(data, rule, start, end)
+
+        # 박스 플롯 생성
+        num = 0 
+        for col in col_list:
+            # yax값 가이드라인 생성, 각 칼럼별 rule별 상한값중에서 가장 큰값
+            uf_list = []
+            for r in boxData[rule].unique():
+                rdata = boxData[boxData[rule] == r]
+                lower_fence, upper_fence =outliers_iqr(rdata[col])
+#                 print(col, r, lower_fence, upper_fence)
+                uf_list.append(upper_fence)
+            col_yax = max(uf_list) 
+            print(col, col_yax)
+            num += 1
+            boxplot(boxData, boxData_median, boxData_median_MA2, boxData_median_MA4, rule, col, num, col_yax)
+    else : 
+         print("카테고리 입력값이 유효하지 않습니다. 'all', 'art', 'defi', 'metaverse', 'collectible', 'game', 'utility' 에서 하나를 입력하세요")      
+        
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### Y축 미조정(극단값 확인 가능)
+
+# COMMAND ----------
+
+#  Y축 조정 안함 , 이상치 다 보임
+box(total, 'all', 'wholeMarket', 'year_month', '2017', '2017') # year_month or year_quater
+
+# COMMAND ----------
+
+#  Y축 조정 안함 , 이상치 다 보임
+box(total, 'all', 'wholeMarket', 'year_month', '2018', '2020')
+
+# COMMAND ----------
+
+#  Y축 조정 안함 , 이상치 다 보임
+box(total, 'all', 'wholeMarket', 'year_month', '2021', '2022')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### Y축 조정(일부 극단값 확인 불가)
+
+# COMMAND ----------
+
+#  Y축 조정 안함
+box(total, 'all', 'wholeMarket', 'year_month', '2017', '2017')
+
+# COMMAND ----------
+
+#  Y축 조정 안함
+box(total, 'all', 'wholeMarket', 'year_month', '2021', '2022')
+
+# COMMAND ----------
+
+#  Y축 조정 안함
+box(total, 'all', 'wholeMarket', 'year_month', '2021', '2022')
 
 # COMMAND ----------
 
@@ -632,6 +738,7 @@ candle(total, 'all', 'wholeMarket', 'Q', '2021', '2022') # data(raw), category, 
 # 카테고리 분류기
 def category_classifier(data, category):
     col_list = []
+    print(data)
     for i in range(len(data.columns)):
         if data.columns[i].split('_')[0] == category:
             col_list.append(data.columns[i])
@@ -743,19 +850,19 @@ def stackareaC(data, category, part):
 
 # COMMAND ----------
 
-lineC(totalQ_avg_log_scaled, 'all')
+lineC(totalM_median_log_scaled, 'all')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'all', 'sales')
+stackareaC(totalM_median, 'all', 'sales')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'all', 'sales_usd')
+stackareaC(totalM_median, 'all', 'sales_usd')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'all', 'user')
+stackareaC(totalM_median, 'all', 'user')
 
 # COMMAND ----------
 
@@ -767,19 +874,19 @@ stackareaC(totalQ_avg, 'all', 'user')
 
 # COMMAND ----------
 
-lineC(totalQ_avg_log_scaled, 'collectible')
+lineC(totalM_median_log_scaled, 'collectible')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'collectible', 'sales')
+stackareaC(totalM_median, 'collectible', 'sales')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'collectible', 'sales_usd')
+stackareaC(totalM_median, 'collectible', 'sales_usd')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'collectible', 'user')
+stackareaC(totalM_median, 'collectible', 'user')
 
 # COMMAND ----------
 
@@ -791,19 +898,19 @@ stackareaC(totalQ_avg, 'collectible', 'user')
 
 # COMMAND ----------
 
-lineC(totalQ_avg_log_scaled, 'art')
+lineC(totalM_median_log_scaled, 'art')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'art', 'sales')
+stackareaC(totalM_median, 'art', 'sales')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'art', 'sales_usd')
+stackareaC(totalM_median, 'art', 'sales_usd')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'art', 'user')
+stackareaC(totalM_median, 'art', 'user')
 
 # COMMAND ----------
 
@@ -815,19 +922,19 @@ stackareaC(totalQ_avg, 'art', 'user')
 
 # COMMAND ----------
 
-lineC(totalQ_avg_log_scaled, 'metaverse')
+lineC(totalM_median_log_scaled, 'metaverse')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'metaverse', 'sales')
+stackareaC(totalM_median, 'metaverse', 'sales')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'metaverse', 'sales_usd')
+stackareaC(totalM_median, 'metaverse', 'sales_usd')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'metaverse', 'user')
+stackareaC(totalM_median, 'metaverse', 'user')
 
 # COMMAND ----------
 
@@ -839,19 +946,19 @@ stackareaC(totalQ_avg, 'metaverse', 'user')
 
 # COMMAND ----------
 
-lineC(totalQ_avg_log_scaled, 'game')
+lineC(totalM_median_log_scaled, 'game')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'game', 'sales')
+stackareaC(totalM_median, 'game', 'sales')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'game', 'sales_usd')
+stackareaC(totalM_median, 'game', 'sales_usd')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'game', 'user')
+stackareaC(totalM_median, 'game', 'user')
 
 # COMMAND ----------
 
@@ -863,19 +970,19 @@ stackareaC(totalQ_avg, 'game', 'user')
 
 # COMMAND ----------
 
-lineC(totalQ_avg_log_scaled, 'utility')
+lineC(totalM_median_log_scaled, 'utility')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'utility', 'sales')
+stackareaC(totalM_median, 'utility', 'sales')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'utility', 'sales_usd')
+stackareaC(totalM_median, 'utility', 'sales_usd')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'utility', 'user')
+stackareaC(totalM_median, 'utility', 'user')
 
 # COMMAND ----------
 
@@ -887,19 +994,19 @@ stackareaC(totalQ_avg, 'utility', 'user')
 
 # COMMAND ----------
 
-lineC(totalQ_avg_log_scaled, 'defi')
+lineC(totalM_median_log_scaled, 'defi')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'defi', 'sales')
+stackareaC(totalM_median, 'defi', 'sales')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'defi', 'sales_usd')
+stackareaC(totalM_median, 'defi', 'sales_usd')
 
 # COMMAND ----------
 
-stackareaC(totalQ_avg, 'defi', 'user')
+stackareaC(totalM_median, 'defi', 'user')
 
 # COMMAND ----------
 
@@ -1029,11 +1136,11 @@ def stackareaF(data, feature):
 
 # COMMAND ----------
 
-lineF(totalQ_avg_log_scaled, 'number_of_sales')
+lineF(totalM_median_log_scaled, 'number_of_sales')
 
 # COMMAND ----------
 
-stackareaF(totalQ_avg, 'number_of_sales')
+stackareaF(totalM_median, 'number_of_sales')
 
 # COMMAND ----------
 
@@ -1042,11 +1149,11 @@ stackareaF(totalQ_avg, 'number_of_sales')
 
 # COMMAND ----------
 
-lineF(totalQ_avg_log_scaled, 'sales_usd')
+lineF(totalM_median_log_scaled, 'sales_usd')
 
 # COMMAND ----------
 
-stackareaF(totalQ_avg, 'sales_usd')
+stackareaF(totalM_median, 'sales_usd')
 
 # COMMAND ----------
 
@@ -1055,11 +1162,11 @@ stackareaF(totalQ_avg, 'sales_usd')
 
 # COMMAND ----------
 
-lineF(totalQ_avg_log_scaled, 'average_usd')
+lineF(totalM_median_log_scaled, 'average_usd')
 
 # COMMAND ----------
 
-stackareaF(totalQ_avg, 'average_usd')
+stackareaF(totalM_median, 'average_usd')
 
 # COMMAND ----------
 
@@ -1068,11 +1175,11 @@ stackareaF(totalQ_avg, 'average_usd')
 
 # COMMAND ----------
 
-lineF(totalQ_avg_log_scaled, 'active_market_wallets')
+lineF(totalM_median_log_scaled, 'active_market_wallets')
 
 # COMMAND ----------
 
-stackareaF(totalQ_avg, 'active_market_wallets')
+stackareaF(totalM_median, 'active_market_wallets')
 
 # COMMAND ----------
 
@@ -1081,11 +1188,11 @@ stackareaF(totalQ_avg, 'active_market_wallets')
 
 # COMMAND ----------
 
-lineF(totalQ_avg_log_scaled, 'primary_sales')
+lineF(totalM_median_log_scaled, 'primary_sales')
 
 # COMMAND ----------
 
-stackareaF(totalQ_avg, 'primary_sales')
+stackareaF(totalM_median, 'primary_sales')
 
 # COMMAND ----------
 
@@ -1094,11 +1201,11 @@ stackareaF(totalQ_avg, 'primary_sales')
 
 # COMMAND ----------
 
-lineF(totalQ_avg_log_scaled, 'secondary_sales')
+lineF(totalM_median_log_scaled, 'secondary_sales')
 
 # COMMAND ----------
 
-stackareaF(totalQ_avg, 'secondary_sales')
+stackareaF(totalM_median, 'secondary_sales')
 
 # COMMAND ----------
 
@@ -1107,11 +1214,11 @@ stackareaF(totalQ_avg, 'secondary_sales')
 
 # COMMAND ----------
 
-lineF(totalQ_avg_log_scaled, 'primary_sales_usd')
+lineF(totalM_median_log_scaled, 'primary_sales_usd')
 
 # COMMAND ----------
 
-stackareaF(totalQ_avg, 'primary_sales_usd')
+stackareaF(totalM_median, 'primary_sales_usd')
 
 # COMMAND ----------
 
@@ -1120,11 +1227,11 @@ stackareaF(totalQ_avg, 'primary_sales_usd')
 
 # COMMAND ----------
 
-lineF(totalQ_avg_log_scaled, 'secondary_sales_usd')
+lineF(totalM_median_log_scaled, 'secondary_sales_usd')
 
 # COMMAND ----------
 
-stackareaF(totalQ_avg, 'secondary_sales_usd')
+stackareaF(totalM_median, 'secondary_sales_usd')
 
 # COMMAND ----------
 
@@ -1133,11 +1240,11 @@ stackareaF(totalQ_avg, 'secondary_sales_usd')
 
 # COMMAND ----------
 
-lineF(totalQ_avg_log_scaled, 'unique_buyers')
+lineF(totalM_median_log_scaled, 'unique_buyers')
 
 # COMMAND ----------
 
-stackareaF(totalQ_avg, 'unique_buyers')
+stackareaF(totalM_median, 'unique_buyers')
 
 # COMMAND ----------
 
@@ -1147,11 +1254,11 @@ stackareaF(totalQ_avg, 'unique_buyers')
 
 # COMMAND ----------
 
-lineF(totalQ_avg_log_scaled, 'unique_sellers')
+lineF(totalM_median_log_scaled, 'unique_sellers')
 
 # COMMAND ----------
 
-stackareaF(totalQ_avg, 'unique_sellers')
+stackareaF(totalM_median, 'unique_sellers')
 
 # COMMAND ----------
 
@@ -1209,52 +1316,29 @@ stackareaF(totalQ_avg, 'unique_sellers')
 
 # COMMAND ----------
 
+import plotly.graph_objects as go
 import plotly.express as px
 
 def heatmapC(data, category):
     col_list = category_classifier(data, category)
-    fig = px.imshow(data[col_list].corr())
+    z = data[col_list].corr()
+    fig = go.Figure()
+#     fig = ff.create_annotated_heatmap(z, annotation_text=True)
+    fig = px.imshow(z, 
+                    width = 800,
+                    height = 800 ,
+#                     text_auto=True, # 5.5 plotly 설치해야함, 안됨...ㅜ
+                    range_color=[-1,1],
+                    color_continuous_scale=["red", "yellow",  "white", "green", "blue"])
     fig.show()
 
 # COMMAND ----------
 
-heatmapC(totalQ_avg, 'all')
+heatmapC(totalM_median, 'all')
 
 # COMMAND ----------
 
-heatmapC(totalQ_avg_log, 'all')
-
-# COMMAND ----------
-
-heatmapC(totalQ_avg_log_scaled, 'all')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## ALL카테고리 주요피처 상관분석1
-# MAGIC - 1차 시장은 상관관계가 낮게 나옴, 신기하네 왜일까? , 사용자수 대부분이 2차 시장 사용자 일지도?
-
-# COMMAND ----------
-
-import plotly.express as px
-
-category_list = ['all_unique_buyers', 'all_unique_sellers', 'all_primary_sales', 'all_secondary_sales']
-fig = px.imshow(totalQ_avg_log_scaled[category_list].corr())
-fig.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## ALL카테고리 주요피처 상관분석2
-# MAGIC - 사용자수, 판매수, 시장가치, 대표 3피처 분석시, 예상대로 usd는 낮게 나옴
-
-# COMMAND ----------
-
-import plotly.express as px
-
-category_list = ['all_active_market_wallets','all_number_of_sales', 'all_sales_usd']
-fig = px.imshow(totalQ_avg_log_scaled[category_list].corr())
-fig.show()
+heatmapC(totalM_median_log, 'all')
 
 # COMMAND ----------
 
@@ -1275,16 +1359,47 @@ fig.show()
 
 # COMMAND ----------
 
+import plotly.graph_objects as go
+import plotly.express as px
 
+def heatmapF(data, feature):
+    col_list = feature_classifier(data, feature)
+    z = data[col_list].corr()
+    fig = go.Figure()
+#     fig = ff.create_annotated_heatmap(z, annotation_text=True)
+    fig = px.imshow(z, 
+                    width = 800,
+                    height = 800 ,
+#                     text_auto=True, # 5.5 plotly 설치해야함, 안됨...ㅜ
+                    range_color=[-1,1],
+                    color_continuous_scale=["red", "yellow",  "white", "green", "blue"])
+    fig.show()
+
+# COMMAND ----------
+
+# all은 collectible, defi와 상관성이 높고, metaverse와 utility는 거의없다. defi는 데이터가 많지 않아서 판단하기 어려움.
+# collectible 기준으로 다른피처와 상관성도 all과 유사하다. collectible -> all 로 보면 될 듯. -> 이 피처를 예측하면 되려나?
+heatmapF(totalM_median_log, 'average_usd')
 
 # COMMAND ----------
 
 
+
+# COMMAND ----------
+
+다른 피처들은 모두 상관성이 높은 것이 변동폭이 비슷한데, 평균 가격은 변동폭이 커서 예측이 유의미할 것 같다. 
+
+# COMMAND ----------
+
+all만 대표로 했는데
+avg_usd, 기준으로 전체 카테고리  비교(상관분석)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC # 시계열 검증, 분해, 모델 예측
+# MAGIC - acf-raw
+# MAGIC - 아리마 모델링 떄 추가 차분 고려
 
 # COMMAND ----------
 
