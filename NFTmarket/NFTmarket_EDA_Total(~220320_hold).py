@@ -8,13 +8,13 @@ import pandas as pd
 # MAGIC # 1. 데이터 로드 및 통합
 # MAGIC - https://nonfungible.com/market/history
 # MAGIC - 차트별 ALL-Time Daily CSV파일 다운로드
-# MAGIC - 2017.06.22 ~ 현재
+# MAGIC - 2017.06.22 ~ 2022.03.20
 
 # COMMAND ----------
 
-# 70개 항목 파일명 리스트로 가져오기
+# 7개  카테고리파일, 파일명 리스트로 가져오기
 import os
-file_list = os.listdir('/dbfs/FileStore/nft/nft_market_220221')
+file_list = os.listdir('/dbfs/FileStore/nft/nft_market_220320')
 len(file_list), print(file_list)
 
 # COMMAND ----------
@@ -40,12 +40,21 @@ val_list
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 # 데이터셋들을 개별 데이터프레임변수로 생성하기& 칼럼명변경(카테고리 붙이기)
 data_list = val_list.copy()
 for i in range(len(file_name)):
-    data_list[i] = pd.read_csv(f'/dbfs/FileStore/nft/nft_market_220221/{file_name[i]}.csv', index_col = "Date", parse_dates=True, thousands=',')
-    data_list[i].columns = [file_name[i]] # 칼럼명 변경
+    data_list[i] = pd.read_csv(f'/dbfs/FileStore/nft/nft_market_220320/{file_name[i]}.csv', index_col = "DateTime", parse_dates=True, thousands=',')
+#     data_list[i].columns = [file_name[i]] # 칼럼명 변경
+    col_list=[]
+    for j in range(len(data_list[i].columns)):
+        col_list.append(file_name[i] + '_' + data_list[i].columns[j])
+    data_list[i].columns = col_list
     print(data_list[i])
+
 
 # COMMAND ----------
 
@@ -294,7 +303,7 @@ totalM_median.head()
 # COMMAND ----------
 
 # 반기 값 맞는지 체크
-total['all_active_market_wallets']['2017-7':'2017-7'].median()
+total['all_active market wallets']['2017-7':'2017-7'].median()
 
 # COMMAND ----------
 
