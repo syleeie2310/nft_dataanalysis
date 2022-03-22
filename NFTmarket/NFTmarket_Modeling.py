@@ -27,14 +27,21 @@ data.head()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 정상성 체크
-# MAGIC - 자기 상관 함수(ACF, PACF)
+# MAGIC ## 정상성 판단
+# MAGIC ### 자기 상관 함수(ACF)
 # MAGIC - 잔차들이 시간의 흐름에서 독립적인지를 확인하기 위함(acf에 0에 가까우면 독립적)
+# MAGIC - 시차가 클수록 0에 가까워지며, 정상 시계열은 상대적으로 빠르게 0에 수렴한다. 
 # MAGIC - ACF는 보통 시계열에서 과거의 종속변수(Y)와의 비교를 통해 계절성 판단을 주로 한다.
 # MAGIC - 보통 시계열 분석에서 많이 사용이 되며, 현재의 Y값과 과거의 Y값의 상관성을 비교한다. 왜냐하면, 각각의 Y값이 독립적이어야 결과 분석이 더 잘되기 때문이다.(Y를 정상화시키면 분석이 더 잘된다는 개념과 같다.) 
+# MAGIC 
+# MAGIC ### 편자기 상관 함수(PACF)
+# MAGIC - 시차에 따른 일련의 편자기상관이며, 시차가 다른 두 시계열 데이터간의 순수한 상호 연관성
+# MAGIC 
+# MAGIC ### 그래프 해석
 # MAGIC - AR(p) 특성: ACF는 천천히 감소하고, PACF는 처음 시차를 제외하고 급격히 감소
 # MAGIC - MA(q) 특성: ACF가 급격히 감소하고, ACF는 천천히 감소
 # MAGIC - 각각 급격히 감소하는 시차를 모수로 사용한다. AR -> PACF,    MA -> ACF
+# MAGIC <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FpcuWC%2Fbtq5CACTt5C%2FX3UFPPkwhZpjV59WygsV30%2Fimg.png">
 
 # COMMAND ----------
 
@@ -153,31 +160,64 @@ def autoCorrelationF(data, feature):
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### raw 데이터 시각화
+# MAGIC - 평균이 일정하지 않음, 차분 필요
+# MAGIC - 2개의 경향으로 나눠짐
+# MAGIC   - all, collectible, art, metaverse 
+# MAGIC   - defi, game, utility
+
+# COMMAND ----------
+
 autoCorrelationF(data, 'average_usd') #raw df, feature
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 체크 결과
+# MAGIC #### [종합요약] "average_usd"피처, 카테고리별 자기상관계수
 # MAGIC 
-# MAGIC 카테고리
-
-# COMMAND ----------
-
-# ACF는 천천히 감소하고 PACF가 급격히 감소하므로 AR의 특성을 가짐
-# pacf는 time lag 1에서 0.95을 보이고 3까지 급격히 감소, q = 3-1 = 2
+# MAGIC | 카테고리 | ACF | PACF |
+# MAGIC |:-------:|:----:|:----:|
+# MAGIC |:all:|::|::|
+# MAGIC |:collectible:|::|::|
+# MAGIC |:art:|::|::|
+# MAGIC |:metaverse:|::|::|
+# MAGIC |:game:|::|::|
+# MAGIC |:defi:|::|::|
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 차분하여 다시 체크
+# MAGIC ### 차분
+
+# COMMAND ----------
+
+import plotly.express as px
+from plotly.subplots import make_subplots
+
+def diff_line(data, feature):
+
+    # 피처 분류기 호출
+    col_list = feature_classifier(data, feature)
+    
+    for col in col_list:
+        series = data[col]
+        # 데이터 차분
+        diff_series = series.diff(periods=1).dropna() # dropna()는 diff를 통해 생긴 데이터 공백제거
+        fig = px.line(diff_series, title= f'[{col}] 차분 시각화') 
+#         fig = make_subplots(rows=1, cols=2)
+        fig.show()
+
+# COMMAND ----------
+
+diff_line(data, 'average_usd') #raw df, feature
 
 # COMMAND ----------
 
 # 21년 11월 15~16일 급등락이 매우 큼, 그외에는 정상성을 보이므로 1차 차분으로 충분
 # arima(0,1,2)하면 될듯
-diff_series = series.diff(periods=1).dropna() # dropna()는 diff를 통해 생긴 데이터 공백제거
-px.line(diff_series)     
+ 
+    
 
 # COMMAND ----------
 
@@ -320,6 +360,12 @@ preds
 
 preds = model_fit.predict(1,1720, typ='levels')
 preds
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 검증
+# MAGIC - 예측값의 잔차 ACF를 그려 정상성을 체크한다.
 
 # COMMAND ----------
 
