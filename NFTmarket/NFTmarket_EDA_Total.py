@@ -97,7 +97,7 @@ msno.matrix(total)
 
 # COMMAND ----------
 
-# total.to_csv("/dbfs/FileStore/nft/nft_market_220221/total_cleaned.csv")
+total.to_csv("/dbfs/FileStore/nft/nft_market_cleaned/total_220222_cleaned.csv")
 
 # COMMAND ----------
 
@@ -1902,20 +1902,6 @@ fig = m.plot(forecast)
 # MAGIC # 피처 예측 가설 설정(단변량 모델링 기준)
 # MAGIC - 외부 요인이 클 것 같긴 하지만.. 다변량은 다음에 하고..
 # MAGIC - 시계열 패턴이 있을지 모르겠어서 예측이 유의미 할지 모르겠지만, 일단 해보자.
-
-# COMMAND ----------
-
-# 시계열 검증(acf, pacf) 일별, 전체 카테고리, 
-# prophet 부터 진행 ( 화요일까지)
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-all만 대표로 했는데
-avg_usd, 기준으로 전체 카테고리  비교(상관분석)
 
 # COMMAND ----------
 
