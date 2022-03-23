@@ -97,7 +97,7 @@ msno.matrix(total)
 
 # COMMAND ----------
 
-total.to_csv("/dbfs/FileStore/nft/nft_market_cleaned/total_220222_cleaned.csv")
+# total.to_csv("/dbfs/FileStore/nft/nft_market_cleaned/total_220222_cleaned.csv")
 
 # COMMAND ----------
 
@@ -1379,6 +1379,11 @@ def heatmapC(data, category):
 
 # COMMAND ----------
 
+# avg_usd와 p_salesusd 가 비교적 상관성이 낮다.
+heatmapC(total, 'all')
+
+# COMMAND ----------
+
 heatmapC(totalM_median_log, 'all')
 
 # COMMAND ----------
@@ -1401,11 +1406,13 @@ def heatmapF(data, feature):
 #             new_col_list.append(col)
 #         else: pass
     
-    # 삼각행렬 데이터 및 mask 생성
     corr = round(data[col_list].corr(), 2)
+        
+    # 삼각행렬 데이터 및 mask 생성
     mask = np.triu(np.ones_like(corr, dtype=bool))
     # 상부 삼각행렬 생성(np.tilu()은 하부), np.ones_like(bool)와 함께 사용하여 값이 있는 하부삼각행렬은 1(true)를 반환한다.
     # 하부를 만들면 우측기준으로 생성되기 때문에 왼쪽기준으로 생성되는 상부를 반전한다.
+   
     df_mask = corr.mask(mask)
 
     
@@ -1443,9 +1450,25 @@ def heatmapF(data, feature):
 
 # COMMAND ----------
 
+# raw데이터의 경우, utility는 다른 카테고리와 상관성이 없고, metaverse는 상관성이 상대적으로 낮다.
+heatmapF(total, 'average_usd') 
+
+# COMMAND ----------
+
 # all은 collectible, defi와 상관성이 높고, metaverse와 utility는 거의없다. defi는 데이터가 많지 않아서 판단하기 어려움.
 # collectible 기준으로 다른피처와 상관성도 all과 유사하다. collectible -> all 로 보면 될 듯. -> 이 피처를 예측하면 되려나?
 heatmapF(totalM_median_log, 'average_usd') 
+
+# COMMAND ----------
+
+# collectible과 all의 상관성이 1.0으로 나온 이유 분석
+# 2017년은 콜렉터블 데이터만 있었으며(all=collectible), 이후에는 추세를 거의 동일하게 같이 한다.
+# sales와 salesUSD까지 추세를 같이하며, 시장가치(salesUSD)도 콜렉터블이 과반수 이상을 차지한다.
+# 위의 이유로 raw데이터기준 0.9이상의 상관성이 log변환으로 1.0까지 극대화된 것으로 보임
+col_list = ['all_average_usd', 'collectible_average_usd',]
+print(total[col_list])
+print("="*50)
+print(round(total[col_list].corr(), 2))
 
 # COMMAND ----------
 
