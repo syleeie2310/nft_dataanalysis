@@ -1312,7 +1312,8 @@ stackareaF(totalM_median, 'unique_sellers')
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 7. 상관관계 분석
+# MAGIC # 8. 상관관계 분석
+# MAGIC - 단위 갭이 너무 크므로 공분산보다는 상관계수를 보자
 
 # COMMAND ----------
 
@@ -1450,6 +1451,11 @@ def heatmapF(data, feature):
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## 히트맵
+
+# COMMAND ----------
+
 # raw데이터의 경우, utility는 다른 카테고리와 상관성이 없고, metaverse는 상관성이 상대적으로 낮다.
 heatmapF(total, 'average_usd') 
 
@@ -1469,6 +1475,47 @@ col_list = ['all_average_usd', 'collectible_average_usd',]
 print(total[col_list])
 print("="*50)
 print(round(total[col_list].corr(), 2))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 산점도 매트릭스
+
+# COMMAND ----------
+
+# 이상치 외에 선형관계가 높음
+import plotly.express as px
+col_list = ['all_average_usd', 'collectible_average_usd']
+df = total[col_list]
+fig = px.scatter_matrix(df)
+fig.update_layout(
+    title_text='<b>avg_USD 주요 카테고리간 산점도 매트릭스 (ALL X Collectible)<b>', 
+    title_x=0.5)
+
+fig.show()
+
+# COMMAND ----------
+
+# avg_usd피처 전체 카테고리의 산점도 매트릭스
+import plotly.express as px
+col_list = feature_classifier(total, 'average_usd')
+for col in col_list:
+    catagory = col.split('_')[0]
+df = total[col_list]
+# 칼럼명을 카테고리로 간소화
+for i in range(len(df.columns)):
+    before = df.columns[i]
+    after = df.columns[i].split('_')[0]
+    df.rename(columns={before :after}, inplace=True)
+    
+fig = px.scatter_matrix(df)
+fig.update_layout(
+    title_text='<b>avg_USD 전체 카테고리 산점도 매트릭스<b>', 
+    title_x=0.5,
+#     width=1600,
+    height=800
+)
+fig.show()
 
 # COMMAND ----------
 
