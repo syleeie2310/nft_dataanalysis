@@ -560,7 +560,7 @@ fig.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 1-1. 기본 아리마
+# MAGIC ### 1-1. Basic ARIMA
 
 # COMMAND ----------
 
@@ -574,6 +574,11 @@ fig.show()
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ##### [함수] 성능 평가지표 반환
+
+# COMMAND ----------
+
 # 평가 지표 함수
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
 
@@ -584,6 +589,11 @@ def evaluation(y, y_preds) :
     rmse = np.sqrt(mean_squared_error(y, y_preds))
     rmsle = np.sqrt(mean_squared_log_error(y, y_preds))
     return r2, mae, mse, rmse, rmsle
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##### [함수] aic check
 
 # COMMAND ----------
 
@@ -725,16 +735,22 @@ def forecast (train, test, modelName):
     pred_lower = []
     temp = train.values
     
-
     for new_ob in test:
         y_pred, interval = forecast_one_step(test, modelName) 
         y_preds.append(y_pred)
         pred_upper.append(interval[1])
         pred_lower.append(interval[0])
+        
+    # 성능 평가지표 출력
+    r2, mae, mse, rmse, rmsle = evaluation(test, y_preds)
+    print(f'r2: {r2}, mae: {mae}, mse: {mse}, rmse: {rmse}, rmsle: {rmsle}')
+    
+    # 예측결과 시각화    
     forecast_plot(train, test, y_preds, pred_upper, pred_lower)
 
 # COMMAND ----------
 
+# r2 score가 상대적으로 1에 가까움..
 forecast(train, test, model_011)
 
 # COMMAND ----------
@@ -817,7 +833,7 @@ forecast(train, test, model_711)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 모수 설정
+# MAGIC #### 1) 모수 설정
 
 # COMMAND ----------
 
@@ -830,7 +846,7 @@ arima_aic_check(train_adj+10, pdq)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 모형 구축
+# MAGIC #### 2) 모형 구축
 
 # COMMAND ----------
 
@@ -846,7 +862,7 @@ model_adj_011.summary()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 예측 및 평가
+# MAGIC #### 3) 미래 예측
 
 # COMMAND ----------
 
@@ -855,15 +871,16 @@ forecast(train_adj, test_adj, model_adj_011)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### [실험 종합 요약]
+# MAGIC ### [실험1&2 요약]
 # MAGIC - [실험1] pdq 비교 011 vs 711 :  짧은기간이라그런지 비슷하다. 그러니 평가지표가 더 좋고 ar의 p-value가 적합한 "011"을 선택한다.
-# MAGIC - [실험2] 데이터 비교 raw011 vs adj011 : 위와 상동..비슷하지만 adj가 소폭 지표가 더 좋다. adj011을 선택해도 되지 않을까?
+# MAGIC - [실험2] 데이터 비교 raw011 vs adj011 : 위와 상동..역시 계절성 영향은 거의 없었구만..비슷하지만 adj가 소폭 지표가 더 좋다. adj011을 선택해도 되지 않을까?
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1-2. 오토 아리마
-# MAGIC - auto arima를 쓰면 모두 자동으로 값을 찾아주고, update도 가능하다.
+# MAGIC ## 1-2. Auto ARIMA
+# MAGIC - auto arima를 쓰면 모두 자동으로 값을 찾아주고,  신규 관측값 refresh(update)도 가능하다.
+# MAGIC - https://assaeunji.github.io/data%20analysis/2021-09-25-arimastock/
 
 # COMMAND ----------
 
@@ -872,19 +889,71 @@ forecast(train_adj, test_adj, model_adj_011)
 
 # COMMAND ----------
 
-# constant 0.05 이하, t검정 0.05 이하, 
-import pmdarima as pm
-order = (0, 1, 1)
-# model = ARIMA(train, order)
-# model_fit = model.fit()
-model_fit = pm.auto_arima(train)
-# 모델저장
-model_fit.save('/dbfs/FileStore/nft/nft_market_model/model.pkl')
-model_fit.summary()
+# MAGIC %md
+# MAGIC ### [실험3] Basic vs Auto
 
 # COMMAND ----------
 
-def forecast1 (train, test, update):
+# MAGIC %md
+# MAGIC #### 1) 모수설정 및 구축
+
+# COMMAND ----------
+
+# 최적 차분을 찾아주는 함수 
+from pmdarima.arima import ndiffs
+kpss_diffs = ndiffs(train, alpha=0.05, test='kpss', max_d=2)
+adf_diffs = ndiffs(train, alpha=0.05, test='adf', max_d=2)
+n_diffs = max(adf_diffs, kpss_diffs)
+
+print(f"추정된 차수 d = {n_diffs}")
+
+# COMMAND ----------
+
+# 최적 pdq를 찾아주는 함수
+# raw data 역시 0, 1, 1이 최선이네
+import pmdarima as pm
+model_pm = pm.auto_arima(y = train, d = 1, start_p = 0
+                      , max_p = round(np.log(len(train)))   
+                      , q = 1  
+                      , m = 1 # 디폴트값 1은 계절적 특징이 없을 때 .  
+                      , seasonal = False # 계절성 ARIMA가 아니라면 필수!
+                      , stepwise = True # 최적의 모수를 찾기 위해 힌드만-칸다카르 알고리즘을 사용할지 여부
+                      , trace=True) # stepwise 모델을 fit할 때마다 결과 출력여부
+                       
+
+# COMMAND ----------
+
+# https://assaeunji.github.io/data%20analysis/2021-09-25-arimastock/
+# adj 데이터로 0, 1, 1
+import pmdarima as pm
+model_adj_pm = pm.auto_arima(y = train_adj, d = 1, start_p = 0
+                      , max_p = round(np.log(len(train_adj)))   
+                      , q = 1  
+                      , m = 1 # 디폴트값 1은 계절적 특징이 없을 때 .  
+                      , seasonal = False # 계절성 ARIMA가 아니라면 필수!
+                      , stepwise = True # 최적의 모수를 찾기 위해 힌드만-칸다카르 알고리즘을 사용할지 여부
+                      , trace=True) # stepwise 모델을 fit할 때마다 결과 출력여부
+                       
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### 2) 모형 refresh 예측 및 평가
+
+# COMMAND ----------
+
+# 한스텝씩 예측
+def forecast_pm_one_step(test, modelName):
+      # 한 스텝씩!, 신뢰구간 출력
+    y_pred, conf_int = modelName.predict(n_prediods=1, return_conf_int=True)
+    return (
+        y_pred.tolist()[0],
+        np.asarray(conf_int).tolist()[0]
+    )
+
+# COMMAND ----------
+
+def forecast_pm (train, test, modelName):
     y_preds = []
     pred_upper = []
     pred_lower = []
@@ -892,18 +961,139 @@ def forecast1 (train, test, update):
     
 
     for new_ob in test:
-        y_pred, interval = forecast_one_step(test) 
+        y_pred, conf = forecast_pm_one_step(test, modelName) 
         y_preds.append(y_pred)
-        pred_upper.append(interval[1])
-        pred_lower.append(interval[0])
+        pred_upper.append(conf[1])
+        pred_lower.append(conf[0])
         ## 모형 업데이트 !!
-        if update == True :
-            model_fit.update(new_ob) # 왜 업데이트 속성이 없는가 ㅜㅜ
-        else :
-            pass
+        modelName.update(new_ob)
+    # 성능 평가지표 출력
+    r2, mae, mse, rmse, rmsle = evaluation(test, y_preds)
+    print(f'r2: {r2}, mae: {mae}, mse: {mse}, rmse: {rmse}, rmsle: {rmsle}')
+    # 예측결과 시각화
     forecast_plot(train, test, y_preds, pred_upper, pred_lower)
 
 # COMMAND ----------
 
+forecast_pm(train, test, model_pm)
+
+# COMMAND ----------
+
+forecast_pm(train_adj, test_adj, model_adj_pm)
+
+# COMMAND ----------
+
 # MAGIC %md
-# MAGIC ## 1-3. 시즈널 아리마
+# MAGIC ## 1-3. Seasonal ARIMA(pass)
+# MAGIC - 데이터가 계절성이 약하므로 안해도 될 듯
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## [실험4] 큰변곡점을 예측할 수 있을까?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 데이터분리
+
+# COMMAND ----------
+
+# raw 데이터
+train1 = data.loc[:'2021', 'collectible_average_usd']
+test1 = data.loc['2022':, 'collectible_average_usd']
+print(len(train1), train1.tail())
+print(len(test1), test1.head())
+
+# COMMAND ----------
+
+# 계절성 조정 데이터
+train1_adj = df_adjusted[:'2021']
+test1_adj = df_adjusted['2022':]
+print(len(train1_adj), train1_adj.tail())
+print(len(test1_adj), test1_adj.head())
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Basic+adj+011
+
+# COMMAND ----------
+
+# p0 모형 구축, ar t검정 적합
+# constant 0.05 이하, t검정 0.05 이하, 
+order = (0, 1, 1)
+model = ARIMA(train1, order)
+model1_011 = model.fit()
+# 모델저장
+model1_011.save('/dbfs/FileStore/nft/nft_market_model/model1_011.pkl')
+model1_011.summary()
+
+# COMMAND ----------
+
+forecast(train1, test1, model1_011)
+
+# COMMAND ----------
+
+# p0 모형 구축, ar t검정 적합
+# constant 0.05 이하, t검정 0.05 이하, 
+order = (0, 1, 1)
+model = ARIMA(train1_adj, order)
+model1_adj_011 = model.fit()
+# 모델저장
+model1_adj_011.save('/dbfs/FileStore/nft/nft_market_model/model1_adj_011.pkl')
+model1_adj_011.summary()
+
+# COMMAND ----------
+
+forecast(train1_adj, test1_adj, model1_adj_011)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Auto+adj+011
+
+# COMMAND ----------
+
+import pmdarima as pm
+model1_pm = pm.auto_arima(y = train, d = 1, start_p = 0
+                      , max_p = round(np.log(len(train1)))   
+                      , q = 1  
+                      , m = 1 # 디폴트값 1은 계절적 특징이 없을 때 .  
+                      , seasonal = False # 계절성 ARIMA가 아니라면 필수!
+                      , stepwise = True # 최적의 모수를 찾기 위해 힌드만-칸다카르 알고리즘을 사용할지 여부
+                      , trace=True) # stepwise 모델을 fit할 때마다 결과 출력여부
+                       
+
+# COMMAND ----------
+
+forecast_pm(train1, test1, model1_pm)
+
+# COMMAND ----------
+
+import pmdarima as pm
+model1_adj_pm = pm.auto_arima(y = train, d = 1, start_p = 0
+                      , max_p = round(np.log(len(train1_adj)))   
+                      , q = 1  
+                      , m = 1 # 디폴트값 1은 계절적 특징이 없을 때 .  
+                      , seasonal = False # 계절성 ARIMA가 아니라면 필수!
+                      , stepwise = True # 최적의 모수를 찾기 위해 힌드만-칸다카르 알고리즘을 사용할지 여부
+                      , trace=True) # stepwise 모델을 fit할 때마다 결과 출력여부
+                       
+
+# COMMAND ----------
+
+forecast_pm(train1_adj, test1_adj, model1_adj_pm)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### [실험3&4 요약]
+# MAGIC - 실험3 : Basic보다 Auto의 예측 성능이 더 좋다.
+# MAGIC - 실험4 : 큰변곡점이 있을 경우 basic raw보다 basic adj가 더 예측을 잘한다. auto는 둘다 비슷하다
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## [모델링 실험 결론]
+# MAGIC - 최적의 모델 : Seasonal Adjusted Data + AutoARIMA + pdq(0,1,1)
