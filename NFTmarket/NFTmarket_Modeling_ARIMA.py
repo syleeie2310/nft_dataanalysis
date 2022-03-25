@@ -496,6 +496,11 @@ df_adjusted
 
 # COMMAND ----------
 
+# 음수가 있네..;
+df_adjusted.describe()
+
+# COMMAND ----------
+
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
@@ -522,10 +527,19 @@ fig.show()
 
 # COMMAND ----------
 
+# raw 데이터
 train = data.loc[:'2022-01', 'collectible_average_usd']
 test = data.loc['2022-02':, 'collectible_average_usd']
 print(len(train), train.tail())
 print(len(test), test.head())
+
+# COMMAND ----------
+
+# 계절성 조정 데이터
+train_adj = df_adjusted[:'2022-01']
+test_adj = df_adjusted['2022-02':]
+print(len(train_adj), train_adj.tail())
+print(len(test_adj), test_adj.head())
 
 # COMMAND ----------
 
@@ -546,12 +560,17 @@ fig.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 실험1 : 기본 아리마
+# MAGIC ### 1-1. 기본 아리마
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 1) 모수 설정
+# MAGIC #### [실험1] raw데이터
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##### 1) 모수 설정
 
 # COMMAND ----------
 
@@ -559,8 +578,6 @@ fig.show()
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
 
 def evaluation(y, y_preds) :
-#     print(y)
-#     print(y_preds)
     r2 = r2_score(y, y_preds)
     mae = mean_absolute_error(y, y_preds)
     mse = mean_squared_error(y, y_preds)
@@ -607,40 +624,63 @@ pd.options.display.float_format = '{: .4f}'.format
 # COMMAND ----------
 
 # 어떻게 선정해야하지?? 값이 전부다 너무 크다 ㅜㅜ
+# aic는 p0이 제일 작지만, 다른 평가지표들은 모두 p7이 제일 작다. 2개를 비교해보자
 pdq = (round(np.log(len(data))), 1, 1)
 arima_aic_check(train, pdq)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 2) 모형 구축
+# MAGIC ##### 2) 모형 구축
+# MAGIC - 선정된 pdq값으로 모형 구축
 
 # COMMAND ----------
 
+# p0 모형 구축, ar t검정 적합
 # constant 0.05 이하, t검정 0.05 이하, 
 order = (0, 1, 1)
 model = ARIMA(train, order)
-model_fit = model.fit()
+model_011 = model.fit()
 # 모델저장
-model_fit.save('/dbfs/FileStore/nft/nft_market_model/model.pkl')
-model_fit.summary()
+model_011.save('/dbfs/FileStore/nft/nft_market_model/model_011.pkl')
+model_011.summary()
+
+# COMMAND ----------
+
+# p7 모형 구축, ar값의 t검정 부적합
+order = (7, 1, 1)
+model = ARIMA(train, order)
+model_711 = model.fit()
+# 모델저장
+model_711.save('/dbfs/FileStore/nft/nft_market_model/model_711.pkl')
+model_711.summary()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 3) 미래 예측
+# MAGIC ##### 3) 미래 예측 및 성능평가
 # MAGIC - 날짜로 예측 어케함?
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ###### [함수] 스탭별 예측기
+
+# COMMAND ----------
+
 # 한스텝씩 예측
-def forecast_one_step(test):
+def forecast_one_step(test, modelName):
       # 한 스텝씩!, 예측구간 출력
-    y_pred, stderr, interval  = model_fit.forecast(steps=len(test.index))  # 예측값, 표준오차(stderr), 신뢰구간(upperbound, lower bound), 
+    y_pred, stderr, interval  = modelName.forecast(steps=len(test.index))  # 예측값, 표준오차(stderr), 신뢰구간(upperbound, lower bound), 
     return (
         y_pred.tolist()[0],
         np.asarray(interval).tolist()[0]
     )
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ###### [함수] 예측결과 비교 시각화
 
 # COMMAND ----------
 
@@ -674,7 +714,12 @@ def forecast_plot(train, test, y_preds, pred_upper, pred_lower):
 
 # COMMAND ----------
 
-def forecast (train, test):
+# MAGIC %md
+# MAGIC ###### [함수] 예측 실행기
+
+# COMMAND ----------
+
+def forecast (train, test, modelName):
     y_preds = []
     pred_upper = []
     pred_lower = []
@@ -682,7 +727,7 @@ def forecast (train, test):
     
 
     for new_ob in test:
-        y_pred, interval = forecast_one_step(test) 
+        y_pred, interval = forecast_one_step(test, modelName) 
         y_preds.append(y_pred)
         pred_upper.append(interval[1])
         pred_lower.append(interval[0])
@@ -690,12 +735,22 @@ def forecast (train, test):
 
 # COMMAND ----------
 
-forecast(train, test)
+forecast(train, test, model_011)
+
+# COMMAND ----------
+
+forecast(train, test, model_711)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 4) 성능 평가
+# MAGIC ###### pdq 비교 011 vs 711
+# MAGIC - 짧은기간이라그런지 비슷하다. 그러니 평가지표가 더 좋고 ar의 p-value가 적합한 "011"을 선택한다.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #####4) 성능 평가
 # MAGIC https://mizykk.tistory.com/102
 # MAGIC - R2 : (1에 가까울 수록 좋음)분산기반 예측 성능 평가 
 # MAGIC - MAE : (0에 가까울 수록 좋음)(Scale영향)
@@ -719,73 +774,37 @@ forecast(train, test)
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
-print(len(test), len(test_preds[0]))
-y = test
-# y_preds = test_preds[0]
-print('r2_score : {:.3f}'.format(r2_score(y, y_preds)))
-print('MAE : {:.6f}'.format(mean_absolute_error(y, y_preds))) # 이상치 영향 받음
-print('MSE : {:.6f}'.format(mean_squared_error(y, y_preds))) # 특이 값이 커서  값이 너무 큼
-print('RMSE : {:.6f}'.format(np.sqrt(mean_squared_error(y, y_preds))))
-print('RMSLE : {:.6f}'.format(np.sqrt(mean_squared_log_error(y, y_preds))))
+# from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
+# print(len(test), len(test_preds[0]))
+# y = test
+# # y_preds = test_preds[0]
+# print('r2_score : {:.3f}'.format(r2_score(y, y_preds)))
+# print('MAE : {:.6f}'.format(mean_absolute_error(y, y_preds))) # 이상치 영향 받음
+# print('MSE : {:.6f}'.format(mean_squared_error(y, y_preds))) # 특이 값이 커서  값이 너무 큼
+# print('RMSE : {:.6f}'.format(np.sqrt(mean_squared_error(y, y_preds))))
+# print('RMSLE : {:.6f}'.format(np.sqrt(mean_squared_log_error(y, y_preds))))
 
 # COMMAND ----------
 
-# 과거 데이터 예측
-model_fit.plot_predict()
-
-# COMMAND ----------
-
-# model_fit.plot_predict('2017-06-23', '2022-02-28')
-model_fit.plot_predict(1, 1334)
-
-# COMMAND ----------
-
-fore = model_fit.forecast(steps=1)
-print(fore)
-# 예측값, stderr, upperbound, lower bound
-# 2월 1일을 37로 예측
-
-# COMMAND ----------
-
-test['all_average_usd']
+# # model_fit.plot_predict('2017-06-23', '2022-02-28')
+# model_fit.plot_predict(1, 1334)
 
 # COMMAND ----------
 
 # 과거 데이터로 테스트해보자
-model_fit.predict(1, 10, typ='levels') # typ= default값이 linear, 예측할때 levels
-
-# COMMAND ----------
-
-# ... 뭥미?
-train['all_average_usd'].head(10)
-
-# COMMAND ----------
-
-# 미래 예측하기 # 왜 안되지 ㅜㅜ, 인덱스가 없어서 그런듯
-preds = model_fit.predict('2022-02-01', '2022-02-28', typ='levels')
-preds
-
-# COMMAND ----------
-
-preds = model_fit.predict(1,1350, typ='levels')
-preds
+# model_fit.predict(1, 10, typ='levels') # typ= default값이 linear, 예측할때 levels
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 5) 모수 추정(pass)
+# MAGIC ##### 5) 모수 추정(pass)
 # MAGIC - 시간부족으로 생략
 # MAGIC - 1.LSE방법, 2. MLE 방법
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 6) 모형 진단(pass)
+# MAGIC ##### 6) 모형 진단(pass)
 # MAGIC - 잔차 분석, 시간부족으로 생략
 # MAGIC - 예측값 정상성 검증
 # MAGIC - 예측값의 잔차 ACF를 그려 정상성을 체크한다.
@@ -793,7 +812,57 @@ preds
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 실험2 : 오토 아리마
+# MAGIC ### [실험2] 계절성 조정 데이터
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### 모수 설정
+
+# COMMAND ----------
+
+# 조정데이터는 음수가 있어서 로그변환이 안됨, 
+# 음수 최소값이 -9.9 이므로 +10해서 입력해보자
+
+pdq = (round(np.log(len(train_adj+10))), 1, 1)
+arima_aic_check(train_adj+10, pdq) 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### 모형 구축
+
+# COMMAND ----------
+
+# p0 모형 구축, ar t검정 적합
+# constant 0.05 이하, t검정 0.05 이하, 
+order = (0, 1, 1)
+model = ARIMA(train_adj, order)
+model_adj_011 = model.fit()
+# 모델저장
+model_adj_011.save('/dbfs/FileStore/nft/nft_market_model/model_adj_011.pkl')
+model_adj_011.summary()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### 예측 및 평가
+
+# COMMAND ----------
+
+forecast(train_adj, test_adj, model_adj_011)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### [실험 종합 요약]
+# MAGIC - [실험1] pdq 비교 011 vs 711 :  짧은기간이라그런지 비슷하다. 그러니 평가지표가 더 좋고 ar의 p-value가 적합한 "011"을 선택한다.
+# MAGIC - [실험2] 데이터 비교 raw011 vs adj011 : 위와 상동..비슷하지만 adj가 소폭 지표가 더 좋다. adj011을 선택해도 되지 않을까?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 1-2. 오토 아리마
 # MAGIC - auto arima를 쓰면 모두 자동으로 값을 찾아주고, update도 가능하다.
 
 # COMMAND ----------
@@ -836,163 +905,5 @@ def forecast1 (train, test, update):
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
 # MAGIC %md
-# MAGIC ## 실험3 : 시즈널 아리마
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 2. Prophet
-# MAGIC - https://facebook.github.io/prophet/docs/quick_start.html#python-api
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### quick start
-
-# COMMAND ----------
-
-# !pip install Prophet
-
-# COMMAND ----------
-
-# py4j 로깅 숨기기
-import logging
-logger = spark._jvm.org.apache.log4j
-logging.getLogger("py4j.java_gateway").setLevel(logging.ERROR)
-
-# COMMAND ----------
-
-import pandas as pd
-from prophet import Prophet
-
-# COMMAND ----------
-
-# 칼럼명 변경
-df = train['all_average_usd'].reset_index()
-df.columns = ['ds', 'y']
-print(df)
-
-# COMMAND ----------
-
-m = Prophet() # linear
-m.fit(df)
-
-# COMMAND ----------
-
-future = m.make_future_dataframe(periods=14)
-future.tail()
-
-# COMMAND ----------
-
-# yhat : 응답변수의 추정값
-forecast = m.predict(future)
-forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
-
-# COMMAND ----------
-
-from prophet.plot import plot_plotly, plot_components_plotly
-# 외삽(미래예측 : 예측구간), 내삽에 따라 다름
-# 예측구간과 신뢰구간은 다름
-plot_plotly(m, forecast)
-
-# COMMAND ----------
-
-1# Python
-plot_components_plotly(m, forecast)
-
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Forecasting Growth
-
-# COMMAND ----------
-
-df['cap'] = 140 # 이걸 어떻게 정해야 하지?, 최대 140을 넣자
-
-# COMMAND ----------
-
-mlg = Prophet(growth='logistic')
-mln = Prophet(growth='linear')
-mlg.fit(df)
-mln.fit(df)
-
-
-# COMMAND ----------
-
-# 선형 예측
-future = mln.make_future_dataframe(periods=30)
-future['cap'] = 140
-fcst = mln.predict(future)
-fig = mln.plot(fcst)
-
-# COMMAND ----------
-
-# 로지스틱 예측
-future = mlg.make_future_dataframe(periods=30)
-future['cap'] = 140 # floor 값 도 필요
-fcst = mlg.predict(future)
-fig = mlg.plot(fcst)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Saturating Minimum
-
-# COMMAND ----------
-
-df['y'] = 10 - df['y']
-df['cap'] = 6
-df['floor'] = 1.5
-future['cap'] = 6
-future['floor'] = 1.5
-m = Prophet(growth='logistic')
-m.fit(df)
-fcst = m.predict(future)
-fig = m.plot(fcst)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Trend changepoints
-
-# COMMAND ----------
-
-from prophet.plot import add_changepoints_to_plot
-fig = m.plot(forecast)
-a = add_changepoints_to_plot(fig.gca(), m, forecast)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Adjusting trend flexibility
-
-# COMMAND ----------
-
-m = Prophet(changepoint_prior_scale=0.5)
-forecast = m.fit(df).predict(future)
-fig = m.plot(forecast)
-
-# COMMAND ----------
-
-# 값을 줄여보자
-m = Prophet(changepoint_prior_scale=0.001)
-forecast = m.fit(df).predict(future)
-fig = m.plot(forecast)
-
-# COMMAND ----------
-
-# 변경점 직접 지정
-# Python
-m = Prophet(changepoints=['2020-11-01'])
-forecast = m.fit(df).predict(future)
-fig = m.plot(forecast)
-
-# COMMAND ----------
-
-
+# MAGIC ## 1-3. 시즈널 아리마
