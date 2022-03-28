@@ -185,6 +185,7 @@ autoCorrelationF(data, 'average_usd') #raw df, feature
 
 # MAGIC %md
 # MAGIC #### raw데이터+차분
+# MAGIC - 차분을 통해 정상성을 갖는다.
 
 # COMMAND ----------
 
@@ -218,7 +219,7 @@ diff_plot(data, 'average_usd', 'line') #raw df, feature
 
 # COMMAND ----------
 
-diff_plot(data[1:], 'average_usd', 'acf') #raw df, feature
+diff_plot(data, 'average_usd', 'acf') #raw df, feature
 
 # COMMAND ----------
 
@@ -238,13 +239,30 @@ diff_plot(np.log1p(data), 'average_usd', 'acf') #raw df, feature
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 3) ADF 정상성 테스트(adfuller)
+# MAGIC ### 3) 통계적 가설 검정(Unit root test:단위근검정)
+# MAGIC 
+# MAGIC #### raw+차분과 log+차분을 정상성 테스트 해보자
 # MAGIC - 검증 조건 ( p-value : 5%이내면 reject으로 대체가설 선택됨 )
 # MAGIC - 귀무가설(H0): non-stationary.
 # MAGIC - 대체가설 (H1): stationary.
+# MAGIC - 단위근 : 단위근이란 확률론의 데이터 검정에서 쓰이는 개념으로 시계열 데이터는 시간에 따라 일정한 규칙을 가짐을 가정한다
+# MAGIC 
+# MAGIC #### 1. Augmented Dickey-Fuller("ADF") Test
+# MAGIC - 시계열에 단위근이 존재하는지 검정,단위근이 존재하면 정상성 시계열이 아님.
+# MAGIC - 귀무가설이 단위근이 존재한다.
+# MAGIC - adf 작을 수록 귀무가설을 기각시킬 확률이 높다
+# MAGIC #### 2. Kwiatkowski-Phillips-Schmidt-Shin (“KPSS”) Test
+# MAGIC - 1종 오류를 범할 문제를 제거한 안정성 검정 방법
+# MAGIC - 귀무가설이 단위근이 존재하지 않는다.
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC #### [함수] ADF 검정
+
+# COMMAND ----------
+
+# adf 검정
 from statsmodels.tsa.stattools import adfuller
 
 def adf_test(data, feature):
@@ -263,37 +281,166 @@ def adf_test(data, feature):
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC #### raw데이터
+# adf 검정
+from statsmodels.tsa.stattools import adfuller
 
-# COMMAND ----------
-
-# raw데이터 : utlity외 전부 0.05보다 크므로 귀무가설 채택하여 "비정상성"
-# adf 작을 수록 귀무가설을 기각시킬 확률이 높다
-adf_test(data, 'average_usd')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 1차 차분 데이터
-
-# COMMAND ----------
-
-# 1차 차분 데이터, 전부다 p-value가 0에 수렴하여 귀무가설 기각, "정상성"
-adf_test(data.diff(periods=1).dropna() , 'average_usd')
-
-# COMMAND ----------
-
-# log변환 + 1차 차분 데이터, 위 1차차분결과와 비슷하다. 유의미한지 모르겠음.
-adf_test(np.log1p(data).diff(periods=1).dropna() , 'average_usd')
+def adf_test1(data):
+#     print("Results of ADF Test")
+    result = adfuller(data)
+#     print('ADF Statistics: %f' % result[0])
+#     print('p-value: %f' % result[1])
+    return result
+#     print('Critical values:')
+#     for key, value in result[4].items():
+#         print('\t%s: %.3f' % (key, value))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 4) [종합요약] "average_usd"피처, 카테고리별 자기상관계수
-# MAGIC (P=?, D=1, Q=1)
-# MAGIC - acf/pacf 그래프에서  p와 q값을 선정하는 것은 권장하지 않음, 정확하지 않고 해석하기 어려움
-# MAGIC - 전체 행 길이의 log변환 값을 최대치로, ar을 실험하는 것을 권장
+# MAGIC #### [함수] KPSS 검정
+
+# COMMAND ----------
+
+# KPSS 검정
+from statsmodels.tsa.stattools import kpss
+
+def kpss_test(data, feature):
+    print("Results of KPSS Test:")
+    
+    # 피처 분류기 호출
+    col_list = feature_classifier(data, feature)
+    
+    for col in col_list:
+        result = kpss(data[col].values, regression="c", nlags="auto")
+        print(f'<<{col}>>')
+        kpss_output = pd.Series(
+            result[0:3], index=["KPSS Statistic", "p-value", "Lags Used"] )
+        for key, value in result[3].items():
+            kpss_output["Critical Value (%s)" % key] = value
+        print(kpss_output)
+        print('='*50)
+
+# COMMAND ----------
+
+# KPSS 검정
+from statsmodels.tsa.stattools import kpss
+
+def kpss_test1(data):
+#     print("Results of KPSS Test")
+    result = kpss(data, regression="c", nlags="auto")
+    kpss_output = pd.Series(
+        result[0:3], index=["KPSS Statistic", "p-value", "Lags Used"] )
+#     for key, value in result[3].items():
+#         kpss_output["Critical Value (%s)" % key] = value
+#     print(kpss_output[:1])   
+    
+#     print('KPSS Statistics: %f' % kpss_output[0])
+#     print('p-value: %f' % kpss_output[1])
+    return kpss_output
+
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC #### [함수] 단위근검정 실행기
+
+# COMMAND ----------
+
+pd.options.display.float_format = '{: .4f}'.format
+
+def URT(data, feature) :
+    # 피처 분류기 호출
+    col_list = feature_classifier(data, feature)
+    
+    adf_stats = []
+    adf_Pval = []
+    kpss_stats = []
+    kpss_Pval = []
+    total_list = []
+    
+    for col in col_list:
+#         print(f'<<<<{col}>>>>')
+        col_data = data[col]
+        
+        # ADF검정기 호출
+        adf_result = adf_test1(col_data) 
+        adf_stats.append(adf_result[0])
+        adf_Pval.append(adf_result[1])
+        
+        # KPSS검정기 호출
+        kpss_result = kpss_test1(col_data)
+        kpss_stats.append(kpss_result[0])
+        kpss_Pval.append(kpss_result[1])
+        
+        # 종합
+        if adf_result[1] <= 0.05 and kpss_result[1] >= 0.05:
+            total_list.append('ALL Pass')
+        elif adf_result[1] <= 0.05 or kpss_result[1] >= 0.05:
+            total_list.append('One Pass')
+        else :
+            total_list.append('fail')
+        
+    # 테이블 생성
+#     col_list.append('total')
+    result_df = pd.DataFrame(list(zip(adf_stats, adf_Pval, kpss_stats, kpss_Pval, total_list)), index = col_list, columns=['adf_stats', 'adf_Pval', 'KPSS_stats', 'KPSS_Pval', 'total'])
+    
+#     # adf stats가 낮은 순으로 정렬
+#     result_df.sort_values(sort, inplace=True)
+    
+    return result_df             
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### Raw+차분 검정(ADF, KPSS)
+
+# COMMAND ----------
+
+# 전체 기간 : art제외하고 모두 정상성을 가짐
+URT(data.diff(periods=1).dropna(), 'average_usd')
+
+# COMMAND ----------
+
+# 2018년 이후 :
+URT(data['2018':].diff(periods=1).dropna(), 'average_usd')
+
+# COMMAND ----------
+
+# 2018년 ~ 2021년 : all, defi, utility만 통과
+URT(data['2018':'2021'].diff(periods=1).dropna(), 'average_usd')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####  Log+차분 검정(ADF, KPSS)
+
+# COMMAND ----------
+
+# 전체 기간 : utility는 조금 약함, 
+URT(np.log1p(data).diff(periods=1).dropna(), 'average_usd')
+
+# COMMAND ----------
+
+# 전체기간 : art와 defi만 모두 통과
+URT(np.log1p(data['2018':]).diff(periods=1).dropna(), 'average_usd')
+
+# COMMAND ----------
+
+# 2018~2021 : art와 defi만 모두 통과
+URT(np.log1p(data['2018':'2021']).diff(periods=1).dropna(), 'average_usd')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 4) [종합요약] "average_usd"피처의 카테고리별 정상성 분석
+# MAGIC 
+# MAGIC - 차분은 1회면 충분하다. MA값도 1로 충분해보임, (P=?, D=1, Q=1)
+# MAGIC   - acf/pacf 그래프에서  p와 q값을 선정하는 것은 권장하지 않음, 정확하지 않고 해석하기 어려움
+# MAGIC   - 전체 행 길이의 log변환 값을 최대치로, ar을 실험하는 가이드가 있으나 정확하지 않음, 값이 변하지 않는지 더 체크해봐야함
+# MAGIC - 통계적 가설 검정
+# MAGIC   - 카테고리별, raw/log별, 기간별 결과가 모두 달라서 혼란스럽다..
+# MAGIC   - raw+차분와 log+차분, 중에 무엇을 골라야하나?
+# MAGIC   - 카테고리는 어떻게 골라야 하나?
 
 # COMMAND ----------
 
@@ -420,7 +567,7 @@ fig.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ##### 차분+raw 데이터
+# MAGIC ##### raw+차분
 
 # COMMAND ----------
 
@@ -434,7 +581,7 @@ fig.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ##### 차분+log변환 데이터
+# MAGIC ##### log+차분
 
 # COMMAND ----------
 
@@ -447,7 +594,7 @@ fig.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ##### 차분+집계데이터
+# MAGIC ##### 집계+차분
 
 # COMMAND ----------
 
@@ -464,10 +611,9 @@ fig.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### [종합요약] : 미차분+raw로 계절성으로 조정된 데이터를 뽑아보자
-# MAGIC - nft마켓 데이터는 비계절성 변동 이슈임. 따라서 계절성 조정이 필요(그런데 왜 계절성에 특징이 보일까?)
-# MAGIC 
-# MAGIC - [실험1] 20년까지 계절성와 불규칙(반복) 특징이 있음. 21년부터 업어 예측될지 의문,  
+# MAGIC #### [종합요약] : raw, log, 집계, 차분까지 모두 계절성을 보이고 불규칙에서도 패턴이 있음, 다만 21년도 이후부터는 계절성이 없어 예측 우려
+# MAGIC - collectible_average_usd는 계절성이 있다.  불규칙에서도 패턴을 보인다. -> 예측이 가능할 것 같지만
+# MAGIC - [실험1] 20년까지 계절성와 불규칙(반복) 특징이 있음. 21년부터 업어 예측될지 의문, -> 지수평활을 해야할 것 같은데.. 
 # MAGIC   - raw추세 : 18년 하락, 21년 급상승
 # MAGIC   - raw계절성 : 1년 주기로 7월에급상승하고 이후 하락세
 # MAGIC   - raw불규칙 : 20년 중반까지 1년간 상승하다 8월 하락 특징이 있었으나,  21년부터 하락 지속
@@ -479,6 +625,7 @@ fig.show()
 
 # MAGIC %md
 # MAGIC ### Seasonal adjustment
+# MAGIC - 계절성이 있긴하지만, 추세에 크게 영향을 주진 못함, 영향력이 작은 듯함, 트랜드 영향이 더 큰 데이터임. 최근 트랜드에 대한 가중치 고려가 필요함(ex 지수평활법)
 # MAGIC - 계절성으로 조정된 데이터, (원데이터에 계절성을 뺌)
 # MAGIC - 계절성으로 조정된 시계열에는 추세-주기 성분도 있고 나머지 성분도 있습니다.
 # MAGIC - 그래서, 시계열이 “매끄럽지” 않고, “하락세”나 “상승세”라는 표현이 오해를 불러 일으킬 수 있습니다.
@@ -528,10 +675,10 @@ fig.show()
 # COMMAND ----------
 
 # raw 데이터
-train = data.loc[:'2022-01', 'collectible_average_usd']
-test = data.loc['2022-02':, 'collectible_average_usd']
-print(len(train), train.tail())
-print(len(test), test.head())
+train_raw = data.loc[:'2021', 'collectible_average_usd']
+test_raw = data.loc['2022-02':, 'collectible_average_usd']
+print(len(train_raw), train_raw.tail())
+print(len(test_raw), test_raw.head())
 
 # COMMAND ----------
 
@@ -667,6 +814,50 @@ model_711.summary()
 
 # COMMAND ----------
 
+pdq = (10, 1, 1)
+arima_aic_check(np.log1p(train), pdq)
+
+# COMMAND ----------
+
+order = (, 1, 1)
+model = ARIMA(np.log1p(train), order)
+model_log_111 = model.fit()
+# 모델저장
+model_log_111.save('/dbfs/FileStore/nft/nft_market_model/model_log_111.pkl')
+model_log_111.summary()
+
+# COMMAND ----------
+
+order = (7, 1, 1)
+model = ARIMA(np.log1p(train), order)
+model_log_711 = model.fit()
+# 모델저장
+model_log_711.save('/dbfs/FileStore/nft/nft_market_model/model_log_711.pkl')
+model_log_711.summary()
+
+# COMMAND ----------
+
+order = (3, 1, 1)
+model = ARIMA(np.log1p(train), order)
+model_log_211 = model.fit()
+# 모델저장
+model_log_211.save('/dbfs/FileStore/nft/nft_market_model/model_log_211.pkl')
+model_log_211.summary()
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ##### 3) 미래 예측 및 성능평가
 # MAGIC - 날짜로 예측 어케함?
@@ -750,7 +941,7 @@ def forecast (train, test, modelName):
 
 # COMMAND ----------
 
-# r2 score가 상대적으로 1에 가까움..
+# r2 score가 상대적으로 1에 가까움.. # 같은 값으로 나옴, 예측을 하긴했지만, 편향적인 모델이다.
 forecast(train, test, model_011)
 
 # COMMAND ----------

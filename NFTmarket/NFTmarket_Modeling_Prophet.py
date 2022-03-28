@@ -77,7 +77,7 @@ m.fit(df)
 # COMMAND ----------
 
 # 예측 범위 (인덱스) 만들기
-future = m.make_future_dataframe(periods=20)
+future = m.make_future_dataframe(periods=60)
 future.tail()
 
 # COMMAND ----------

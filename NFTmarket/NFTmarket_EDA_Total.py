@@ -1532,7 +1532,7 @@ print(round(total.loc['2018':, col_list].corr(), 4))
 
 # 이상치 외에 선형관계가 높음
 import plotly.express as px
-col_list = ['all_average_usd', 'collectible_average_usd', 'game_average_usd']
+col_list = ['all_average_usd', 'collectible_average_usd']
 df = total[col_list]
 fig = px.scatter_matrix(df)
 fig.update_layout(
