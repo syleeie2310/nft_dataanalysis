@@ -1318,12 +1318,7 @@ stackareaF(totalM_median, 'unique_sellers')
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ALL카테고리 피처별 상관분석
-# MAGIC - 로그변환해야함, 갭이 너무 커서 상관관계에 영향을 줌
-# MAGIC - 전반적으로 서로 상관관계가 높게 나오는데, 파생변수들이 섞였기 때문
-# MAGIC   - average_usd는 예상대로 다른 피처들과 상관관계가 없음 -> 사람들이 임의로 가치를 올리기 때문
-# MAGIC   - sales_usd는 상관관계가 높으나, sales에 avg_usd가 계산된 파생 변수임 -> 예측에 적절하지 않음 제외
-# MAGIC   - market_wallt 또한 buyer와 seller의 파생변수이므로 상관성이 매우 높게 나옴
+# MAGIC ## 히트맵
 
 # COMMAND ----------
 
@@ -1377,15 +1372,6 @@ def heatmapC(data, category):
 
     fig.show()
     
-
-# COMMAND ----------
-
-# avg_usd와 p_salesusd 가 비교적 상관성이 낮다.
-heatmapC(total, 'all')
-
-# COMMAND ----------
-
-heatmapC(totalM_median_log, 'all')
 
 # COMMAND ----------
 
@@ -1452,29 +1438,90 @@ def heatmapF(data, feature):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 히트맵
+# MAGIC ## ALL카테고리 피처별 상관분석
+# MAGIC - 로그변환해야함, 갭이 너무 커서 상관관계에 영향을 줌
+# MAGIC - 전반적으로 서로 상관관계가 높게 나오는데, 파생변수들이 섞였기 때문
+# MAGIC   - average_usd는 예상대로 다른 피처들과 상관관계가 없음 -> 사람들이 임의로 가치를 올리기 때문
+# MAGIC   - sales_usd는 상관관계가 높으나, sales에 avg_usd가 계산된 파생 변수임 -> 예측에 적절하지 않음 제외
+# MAGIC   - market_wallt 또한 buyer와 seller의 파생변수이므로 상관성이 매우 높게 나옴
 
 # COMMAND ----------
 
-# raw데이터의 경우, utility는 다른 카테고리와 상관성이 없고, metaverse는 상관성이 상대적으로 낮다.
-heatmapF(total, 'average_usd') 
+# MAGIC %md
+# MAGIC ##### 2018년도 이후 분석
+# MAGIC - 2017년도는 collectible 데이터만 있으므로 제외
 
 # COMMAND ----------
 
+# Raw data : avg_usd와 p_salesusd 가 비교적 상관성이 낮다.
+heatmapC(total['2018':], 'all')
+
+# COMMAND ----------
+
+# Log data : 피처별 값 기준범위 차이가 매우 크므로, 로그변환 그래프가 관계비교를 파악하기 용이하다. avg usd가 더 높아졌네?
+heatmapC(totalM_median_log['2018':], 'all')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##### 2018년~ 2020년도 분석
+# MAGIC - 2017년도는 collectible 데이터만 있으므로 제외
+# MAGIC - 디파이가 2021년도부터 포함되므로, 분리해서 분석
+
+# COMMAND ----------
+
+# 확실히 avg-usd가 관계성이 낮다.
+heatmapC(totalM_median_log['2018':'2020'], 'all')
+
+# COMMAND ----------
+
+# 2021년도부터 defi가 포함되고, 변동성이 커지면서 avg_usd도 관계성이 높아졌다.
+heatmapC(totalM_median_log['2021':'2022'], 'all')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## average usd 피처의 카테고리별 상관분석
+# MAGIC - 값기준범위가 같으므로 raw로 분석한다
+
+# COMMAND ----------
+
+# 2018녀도 이후 데이터의 경우, utility는 다른 카테고리와 상관성이 없고, metaverse는 상관성이 상대적으로 낮다.
+heatmapF(total['2018':], 'average_usd') 
+
+# COMMAND ----------
+
+# 하지만 2018~2020년도 데이터 : defi는 데이터 없음, 콜렉터블과 게임만 전체usd와 상관성이 높다. 
+heatmapF(total['2018':'2020'], 'average_usd') 
+
+# COMMAND ----------
+
+# 21년도 이후 : defi는 두루 약한 상관성을 보인다.
+heatmapF(total['2021':'2022'], 'average_usd') 
+
+# COMMAND ----------
+
+# 21년 only, 
+heatmapF(total[:'2021'], 'average_usd') 
+
+# COMMAND ----------
+
+# 전체 기간을 log 씌워서 봐볼까?
 # all은 collectible, defi와 상관성이 높고, metaverse와 utility는 거의없다. defi는 데이터가 많지 않아서 판단하기 어려움.
 # collectible 기준으로 다른피처와 상관성도 all과 유사하다. collectible -> all 로 보면 될 듯. -> 이 피처를 예측하면 되려나?
-heatmapF(totalM_median_log, 'average_usd') 
+heatmapF(totalM_median_log['2018':], 'average_usd') 
 
 # COMMAND ----------
 
-# collectible과 all의 상관성이 1.0으로 나온 이유 분석
+# collectible과 all의 상관성이 1.0으로 나온 원인 파악 ->log변환하지 않고, 기간을 조정하여 해결함
 # 2017년은 콜렉터블 데이터만 있었으며(all=collectible), 이후에는 추세를 거의 동일하게 같이 한다.
 # sales와 salesUSD까지 추세를 같이하며, 시장가치(salesUSD)도 콜렉터블이 과반수 이상을 차지한다.
 # 위의 이유로 raw데이터기준 0.9이상의 상관성이 log변환으로 1.0까지 극대화된 것으로 보임
 col_list = ['all_average_usd', 'collectible_average_usd',]
 print(total[col_list])
 print("="*50)
-print(round(total[col_list].corr(), 2))
+pd.set_option('float_format', '{:.4f}'.format) 
+print(round(total.loc['2018':, col_list].corr(), 4))
 
 # COMMAND ----------
 
@@ -1485,7 +1532,7 @@ print(round(total[col_list].corr(), 2))
 
 # 이상치 외에 선형관계가 높음
 import plotly.express as px
-col_list = ['all_average_usd', 'collectible_average_usd']
+col_list = ['all_average_usd', 'collectible_average_usd', 'game_average_usd']
 df = total[col_list]
 fig = px.scatter_matrix(df)
 fig.update_layout(
@@ -1521,6 +1568,13 @@ fig.show()
 
 # MAGIC %md
 # MAGIC ## 상관분석 요약 종합 및 피처 셀렉션
-# MAGIC - average_usd, sales_usd는 상관관계가 낮음(인위적으로 가치부여하기 때문, 기준 없음)
+# MAGIC - average_usd는 상대적으로 다른 피처들과 상관성이 낮음(인위적으로 가치부여하기 때문, 기준 없음)
 # MAGIC - 서로 상관성이 매우 높음, 즉 예측할 수 없는 변동특징을 모두 가지고 있을 것
 # MAGIC - 그런데 반대로 평균가격만 상관성이 낮으므로, 어쩌면 패턴이 있을지 모르니 한번 시계열 특징을 분석해보자.
+# MAGIC 
+# MAGIC - 기간별로 상관성이 모두 다르다.
+# MAGIC - defi가 없는 2018~2020년도는 average_usd 중 collectible과 game카테고리가 all과 가장 상관성이 높고,
+# MAGIC - defi가 포함되고 변동성이 컸던 2021년도 이후는 art가 가장 높은 상관성을 보인다.
+# MAGIC 
+# MAGIC -> average_usd에서 game, art, collectible 3개의 카테고리를 모델링 해보자?
+# MAGIC -> 만약 3개의 주요피처를 차원축소해서 모델링하면 all을 예측할 수 있을까?
