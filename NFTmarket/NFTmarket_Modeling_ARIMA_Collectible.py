@@ -108,7 +108,7 @@ def evaluation(y, y_preds) :
 # COMMAND ----------
 
 # 최적 P와 q값 찾는 함수
-from statsmodels.tsa.arima_model import ARIMA
+from statsmodels.tsa.arima_model import ARIMA, ARIMAResults
 
 def arima_aic_check(data, pdq, sort = 'AIC'):
     order_list = []
@@ -237,6 +237,34 @@ result
 # MAGIC %md
 # MAGIC ### 2) 모형 구축
 # MAGIC - log데이터 및 선정된 데이터 및 pdq로 모형 구축
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [함수] 모델링
+
+# COMMAND ----------
+
+from statsmodels.tsa.arima_model import ARIMA
+
+def arima(data, p, d, q, datatype, const = 'c'):
+    order = (p, d, q)
+    dtype = datatype
+    pdq = str(p)+str(d)+str(q)
+    
+    if datatype == 'raw':
+        pass
+    elif datatype == 'log':
+        data = np.log1p(data)
+    else:
+        print('입력값이 유효하지 않습니다.')
+    
+    model = ARIMA(data, order)
+    model_fit = model.fit(trend=str(const))
+    
+    # 모델저장
+    model_fit.save(f'/dbfs/FileStore/nft/nft_market_model/model_{dtype}_{pdq}_{const}.pkl')
+    return model_fit.summary()
 
 # COMMAND ----------
 
@@ -873,9 +901,8 @@ print(f"추정된 차수 d = {n_diffs}")
 # COMMAND ----------
 
 # 최적 pdq를 찾아주는 함수
-# raw data 역시 0, 1, 1이 최선이네
 import pmdarima as pm
-model_pm = pm.auto_arima(y = train, d = 1, start_p = 0
+model_pm = pm.auto_arima(y = train, d = 2, start_p = 0
                       , max_p = round(np.log(len(train)))   
                       , q = 1  
                       , m = 1 # 디폴트값 1은 계절적 특징이 없을 때 .  
@@ -886,12 +913,22 @@ model_pm = pm.auto_arima(y = train, d = 1, start_p = 0
 
 # COMMAND ----------
 
-arima(train_raw, 0, 1, 2, 'raw')
+arima(train_raw, 1, 2, 3, 'raw')
 
 # COMMAND ----------
 
-#012
-model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_012_c.pkl')
+#123
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_123_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'raw')
+
+# COMMAND ----------
+
+arima(train_raw, 1, 2, 3, 'raw', 'nc')
+
+# COMMAND ----------
+
+#123_nc
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_123_nc.pkl')
 forecast(train_raw, test_raw, model_loaded, 'raw')
 
 # COMMAND ----------
@@ -901,17 +938,46 @@ forecast(train_raw, test_raw, model_loaded, 'raw')
 
 # COMMAND ----------
 
-# https://assaeunji.github.io/data%20analysis/2021-09-25-arimastock/
-# adj 데이터로 0, 1, 1
+# 최적 차분을 찾아주는 함수 
+from pmdarima.arima import ndiffs
+kpss_diffs = ndiffs(np.log1p(train), alpha=0.05, test='kpss', max_d=2)
+adf_diffs = ndiffs(np.log1p(train), alpha=0.05, test='adf', max_d=2)
+n_diffs = max(adf_diffs, kpss_diffs)
+
+print(f"추정된 차수 d = {n_diffs}")
+
+# COMMAND ----------
+
+# 최적 pdq를 찾아주는 함수
 import pmdarima as pm
-model_adj_pm = pm.auto_arima(y = train_adj, d = 1, start_p = 0
-                      , max_p = round(np.log(len(train_adj)))   
+model_pm = pm.auto_arima(y = np.log1p(train), d = 1, start_p = 0
+                      , max_p = round(np.log(len(train)))   
                       , q = 1  
                       , m = 1 # 디폴트값 1은 계절적 특징이 없을 때 .  
                       , seasonal = False # 계절성 ARIMA가 아니라면 필수!
                       , stepwise = True # 최적의 모수를 찾기 위해 힌드만-칸다카르 알고리즘을 사용할지 여부
                       , trace=True) # stepwise 모델을 fit할 때마다 결과 출력여부
                        
+
+# COMMAND ----------
+
+arima(train_raw, 2, 1, 3, 'log')
+
+# COMMAND ----------
+
+#213_c
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_213_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+arima(train_raw, 2, 1, 3, 'log', 'nc')
+
+# COMMAND ----------
+
+#213_nc
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_213_nc.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
 
 # COMMAND ----------
 
@@ -925,9 +991,117 @@ model_adj_pm = pm.auto_arima(y = train_adj, d = 1, start_p = 0
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ####[함수] SARIMA 예측기
+
+# COMMAND ----------
+
+def forecast_sarima (train, test, modelName, datatype):
+    y_preds = []
+    pred_upper = []
+    pred_lower = []
+    
+    if datatype == 'raw':
+        pass
+    elif datatype == 'log':
+        train = np.log1p(train)
+        test = np.log1p(test)
+    else:
+        print('입력값이 유효하지 않습니다.')
+        
+    # 예측
+    y_pred = modelName.forecast(steps=len(test.index)) 
+    y_preds = y_pred.tolist()      
+#     pred_upper.append(interval[1])
+#     pred_lower.append(interval[0])
+    
+    if datatype == 'raw':
+        pass
+    elif datatype == 'log':
+        test =  np.expm1(test) 
+        y_preds = np.expm1(y_preds) 
+    else:
+        print('입력값이 유효하지 않습니다.')
+    
+    
+    # 성능 평가지표 출력
+    r2, mae, mse, rmse, rmsle, mape = evaluation(test, y_preds)
+    print(f'r2: {r2}, mae: {mae}, mse: {mse}, rmse: {rmse}, rmsle: {rmsle}, mape: {mape}')
+
+    # 예측결과 시각화 
+    if datatype == 'raw':
+        forecast_plot(train, test, y_preds, pred_upper, pred_lower)
+    elif datatype == 'log': # 로그변환된 데이터를 다시 역변환
+#         forecast_plot(train, test, y_preds, pred_upper, pred_lower)
+        forecast_plot(np.expm1(train), test, y_preds, np.expm1(pred_upper), np.expm1(pred_lower))
+    else :
+        pass
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ### raw차분+시즈널
+
+# COMMAND ----------
+
+# 최적 pdq를 찾아주는 함수
+import pmdarima as pm
+model_pm = pm.auto_arima(y = train, d = 2, start_p = 0
+                      , max_p = round(np.log(len(train)))   
+                      , q = 1  
+                      , m = 12 # 디폴트값 1은 계절적 특징이 없을 때 .  
+                      , seasonal = True # 계절성 ARIMA가 아니라면 필수!
+                      , stepwise = True # 최적의 모수를 찾기 위해 힌드만-칸다카르 알고리즘을 사용할지 여부
+                      , trace=True) # stepwise 모델을 fit할 때마다 결과 출력여부
+                       
+
+# COMMAND ----------
+
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+mdl = SARIMAX(endog=train, order=(1, 2, 3),
+                                seasonal_order=(0, 0, 2, 12),
+                                enforce_stationarity=True,
+                                enforce_invertibility=True)
+model_fit = mdl.fit()
+model_fit.save('/dbfs/FileStore/nft/nft_market_model/model_sarima_123_002_12.pkl')
+model_fit.summary()
+
+# COMMAND ----------
+
+#123_002_12
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_sarima_123_002_12.pkl')
+forecast_sarima(train_raw, test_raw, model_loaded, 'raw')
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### log차분+시즈널
+
+# COMMAND ----------
+
+# 최적 pdq를 찾아주는 함수
+import pmdarima as pm
+model_pm = pm.auto_arima(y = np.log1p(train), d = 1, start_p = 0
+                      , max_p = round(np.log(len(train)))   
+                      , q = 1  
+                      , m = 12 # 디폴트값 1은 계절적 특징이 없을 때 .  
+                      , seasonal = True # 계절성 ARIMA가 아니라면 필수!
+                      , stepwise = True # 최적의 모수를 찾기 위해 힌드만-칸다카르 알고리즘을 사용할지 여부
+                      , trace=True) # stepwise 모델을 fit할 때마다 결과 출력여부
+                       
+
+# COMMAND ----------
+
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+mdl = SARIMAX(endog=np.log1p(train), order=(2, 1, 2),
+                                seasonal_order=(1, 0, 0, 12),
+                                enforce_stationarity=True,
+                                enforce_invertibility=True)
+model_fit = mdl.fit()
+model_fit.save('/dbfs/FileStore/nft/nft_market_model/model_sarima_213_100_12.pkl')
+model_fit.summary()
+
+# COMMAND ----------
+
+#213_10012
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_sarima_213_100_12.pkl')
+forecast_sarima(train_raw, test_raw, model_loaded, 'log')

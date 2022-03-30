@@ -215,7 +215,7 @@ def arima_aic_check(data, pdq, datatype, sort = 'AIC'):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### [함수] 모델링
+# MAGIC #### [함수] 모델링
 
 # COMMAND ----------
 
@@ -753,6 +753,11 @@ mdl = SARIMAX(endog=train, order=(0, 1, 2),
 model_fit = mdl.fit()
 model_fit.save('/dbfs/FileStore/nft/nft_market_model/model_sarima_012_200_12.pkl')
 model_fit.summary()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ####[함수] 사리마 예측기
 
 # COMMAND ----------
 
