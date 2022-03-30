@@ -38,8 +38,8 @@ data.tail()
 # COMMAND ----------
 
 # raw 데이터
-train_raw = data.loc[:'2021', 'collectible_average_usd']
-test_raw = data.loc['2022-01':, 'collectible_average_usd']
+train_raw = data.loc[:'2021', 'game_average_usd']
+test_raw = data.loc['2022-01-10':, 'game_average_usd']
 print(len(train_raw), train_raw.tail())
 print(len(test_raw), test_raw.head())
 
@@ -110,7 +110,7 @@ def evaluation(y, y_preds) :
 # 최적 P와 q값 찾는 함수
 from statsmodels.tsa.arima_model import ARIMA
 
-def arima_aic_check(data, pdq, sort = 'AIC'):
+def arima_aic_check(data, pdq, sort = 'AIC', datatype):
     order_list = []
     aic_list = []
     bic_list = []
@@ -122,6 +122,15 @@ def arima_aic_check(data, pdq, sort = 'AIC'):
     mape_list = []
     eval_list_list = [r2_list, mae_list, mse_list, rmse_list, rmsle_list, mape_list]
     p, d, q = pdq
+    
+    
+    if datatype == 'raw':
+        pass
+    elif datatype == 'log':
+        data = np.log1p(data)
+    else:
+        print('입력값이 유효하지 않습니다.')
+
     for i in tqdm(range(p+1)):
         for j in tqdm(range(q+1)): 
             model = ARIMA(data, order=(i,d,j))
@@ -137,7 +146,16 @@ def arima_aic_check(data, pdq, sort = 'AIC'):
                  # 예측(과거 예측)
                 preds= model_fit.forecast(steps=len(data.index))
                 # 평가
-                r2, mae, mse, rmse, rmsle, mape = evaluation(data, preds[0])
+                    
+                if datatype == 'raw':
+                    pass
+                elif datatype == 'log':
+                    y =  np.expm1(data) 
+                    y_preds = np.expm1(preds[0]) 
+                else:
+                    print('입력값이 유효하지 않습니다.')
+    
+                r2, mae, mse, rmse, rmsle, mape = evaluation(y, y_preds)
                 eval_list = [r2, mae, mse, rmse, rmsle, mape]
 
                 for i in range(len(eval_list_list)) :
@@ -153,67 +171,36 @@ def arima_aic_check(data, pdq, sort = 'AIC'):
 
 # MAGIC %md
 # MAGIC ##### Raw+차분
-# MAGIC 차분1 고정, ma는 0과 1  로 최적의 p를 찾아보자
+# MAGIC - raw차분 data : acf 2, 22, pacf 2, 22
 
 # COMMAND ----------
 
-# q(ma)가 0일 때
-# p가 늘어날 수록 aic 설명력은 좋아지지만,모델 정확도 rmse는 감소한다. bic는 p5가 가장 낮음
-# 결론 : p1 이 aic/bic/rmse 지표가 최적임
-pdq = (15, 1, 0)
-arima_aic_check(train_raw, pdq)
-
-# COMMAND ----------
-
-# q(ma)가 1일 때
-# p가 늘어날 수록 aic 설명력은 좋아지지만, 모델 정확도 ,rmse는 감소한다. bic는 p8가 가장 낮음
-# 결론 : p1 이 aic/bic/rmse 지표가 최적임
-pdq = (15, 1, 1)
-arima_aic_check(train_raw, pdq)
-
-# COMMAND ----------
-
-
-guide = round(np.log1p(len(train_raw))
-pdq = (guide, 1, guide)
-result = arima_aic_check(train_raw, pdq))
-print(result)
-
-# COMMAND ----------
-
-# ar과 ma를 함께 올려보자.  6,1,3이 최적이다.  더 안올려도 될듯
+# 210
 guide = round(np.log1p(len(train_raw)))
 pdq = (guide, 1, guide)
-result = arima_aic_check(train_raw, pdq)
-print(result)
+result = arima_aic_check(train_raw, pdq, 'raw')
+result
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ##### log+차분
-# MAGIC - 로그데이터는 p 0이 가장 rmse 값이 낮음
+# MAGIC - log차분 data :  acf, 2, 4  ,  pacf 2 , 8
 
 # COMMAND ----------
 
-# q가 0일 때
-# raw와 유사한 결과,  p0이 가장 최적으로 보임
-pdq = (15, 1, 0)
-arima_aic_check(np.log1p(train_raw), pdq)
-
-# COMMAND ----------
-
-# q가 1일 때
-# raw와 유사한 결과,  p0이 가장 최적으로 보임
-pdq = (15, 1, 1)
-arima_aic_check(np.log1p(train_raw), pdq)
-
-# COMMAND ----------
-
-#  줄여서 해보자.// 안됨 확실
 guide = round(np.log1p(len(train_raw)))
 pdq = (guide, 1, guide)
-result = arima_aic_check(np.log1p(train_raw), pdq)
-result
+result = arima_aic_check(np.log1p(train_raw), pdq, 'log')
+print(result)
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
@@ -243,63 +230,95 @@ result
 
 # COMMAND ----------
 
-# 이건 또 왜 안되는겨 ㅜㅜㅜ
-# from statsmodels.tsa.arima_model import ARIMA
-
-# order = (6, 1, 3)
-# model = ARIMA(train_raw, order)
-# model_613 = model.fit()
-# # 모델저장
-# model_613.save('/dbfs/FileStore/nft/nft_market_model/model_613.pkl')
-# model_613.summary()
+# MAGIC %md
+# MAGIC #### raw+차분
 
 # COMMAND ----------
 
-import numpy as np
-import pandas as pd
-
-
-# COMMAND ----------
-
-# p0 모형 구축, ar t검정 적합
-# constant 0.05 이하, t검정 0.05 이하, 
+# 210, 추세포함
 from statsmodels.tsa.arima_model import ARIMA
 
-order = (3, 1, 1)
-model = ARIMA(np.log1p(train_raw), order)
-model_log_311 = model.fit()
+order = (2, 1, 0)
+model1 = ARIMA(train_raw, order)
+model1_210 = model1.fit()
 # 모델저장
-model_log_311.save('/dbfs/FileStore/nft/nft_market_model/model_log_311.pkl')
-model_log_311.summary()
+model1_210.save('/dbfs/FileStore/nft/nft_market_model/model1_210.pkl')
+model1_210.summary()
+
+# COMMAND ----------
+
+# 210, 추세포함
+from statsmodels.tsa.arima_model import ARIMA
+
+order = (2, 1, 1)
+model1 = ARIMA(train_raw, order)
+model1_211 = model1.fit()
+# 모델저장
+model1_211.save('/dbfs/FileStore/nft/nft_market_model/model1_211.pkl')
+model1_211.summary()
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 3) 예측 및 평가
+# MAGIC #### log+차분
+
+# COMMAND ----------
+
+# 011, contant 값이 0.05보다 높다.
+from statsmodels.tsa.arima_model import ARIMA
+
+order = (0, 1, 1)
+model = ARIMA(np.log1p(train_raw), order)
+model_log_011 = model.fit()
+# 모델저장
+model_log_011.save('/dbfs/FileStore/nft/nft_market_model/model_log_011.pkl')
+model_log_011.summary()
+
+# COMMAND ----------
+
+# 011_nc, contant 값이 유효하다.
+from statsmodels.tsa.arima_model import ARIMA
+
+order = (0, 1, 1)
+model = ARIMA(np.log1p(train_raw), order)
+model_log_011_nc = model.fit(trend='nc')
+# 모델저장
+model_log_011_nc.save('/dbfs/FileStore/nft/nft_market_model/model_log_011_nc.pkl')
+model_log_011_nc.summary()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 3) 예측 및 성능 평가
 # MAGIC - 날짜로 예측 어케함?
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ###### [함수] 스탭별 예측기
-
-# COMMAND ----------
-
-# def forecast_step(test, modelName):
-#       # 한 스텝씩!, 예측구간 출력
-#     y_pred, stderr, interval  = modelName.forecast(steps=len(test.index))  # 예측값, 표준오차(stderr), 신뢰구간(upperbound, lower bound), 
-#     print(y_pred.tolist()[0])
-#     print('='*50)
-#     print(np.asarray(interval).tolist()[0])
-#     print('='*50)
-#     print(y_pred)
-#     print('='*50)
-#     print(y_pred.tolist())
-#     print('='*50)
-#     return (
-#         y_pred.tolist()[0],
-#         np.asarray(interval).tolist()[0]
-#     )
+# MAGIC 
+# MAGIC 
+# MAGIC 
+# MAGIC ### 4) 성능 평가
+# MAGIC https://mizykk.tistory.com/102
+# MAGIC - R2 : (1에 가까울 수록 좋음)분산기반 예측 성능 평가 
+# MAGIC - MAE : (0에 가까울 수록 좋음)(Scale영향)
+# MAGIC   - 오차들의 절대값 평균, MSE보다 이상치에 덜 민감
+# MAGIC - MSE : (0에 가까울 수록 좋음)(Scale영향)
+# MAGIC   - 예측값과 실체값의 차이인 "오차들의 제곱 평균", 이상치에 민감
+# MAGIC - RMSE : (0에 가까울 수록 좋음)(Scale영향)
+# MAGIC   - MSE의 루트값, 오류지표를 실제값과 유사한 단위로 변환하여 해석이 용이
+# MAGIC - RMSLE : (Scale영향)
+# MAGIC   - 오차를 구할 때 RMSE에 log 변환
+# MAGIC   - 이상치에 덜 민감, 상대적 error값, under estimation에 큰 패널티
+# MAGIC   
+# MAGIC   
+# MAGIC |방법|	Full|	잔차 계산|	이상치 영향|
+# MAGIC |----|----|----|----|
+# MAGIC |MAE|	Mean Absolute Error|	Absolute Value|	Yes|
+# MAGIC |MSE|	Mean Squared Error|	Square	|No|
+# MAGIC |RMSE|	Root Mean Squared Error|	Square	|No|
+# MAGIC |MAPE|	Mean Absolute Percentage Error|	Absolute Value	|Yes|
+# MAGIC |MPE|	Mean Percentage Error|	N/A	|Yes|
 
 # COMMAND ----------
 
@@ -354,14 +373,23 @@ def forecast (train, test, modelName, datatype):
         train = np.log1p(train)
         test = np.log1p(test)
     else:
-        print('입력값이 유요하지 않습니다.')
+        print('입력값이 유효하지 않습니다.')
         
     # 예측
     y_pred, stderr, interval  = modelName.forecast(steps=len(test.index)) 
     y_preds = y_pred.tolist()      
     pred_upper.append(interval[1])
     pred_lower.append(interval[0])
-
+    
+    if datatype == 'raw':
+        pass
+    elif datatype == 'log':
+        test =  np.expm1(test) 
+        y_preds = np.expm1(y_preds) 
+    else:
+        print('입력값이 유효하지 않습니다.')
+    
+    
     # 성능 평가지표 출력
     r2, mae, mse, rmse, rmsle, mape = evaluation(test, y_preds)
     print(f'r2: {r2}, mae: {mae}, mse: {mse}, rmse: {rmse}, rmsle: {rmsle}, mape: {mape}')
@@ -371,81 +399,47 @@ def forecast (train, test, modelName, datatype):
         forecast_plot(train, test, y_preds, pred_upper, pred_lower)
     elif datatype == 'log': # 로그변환된 데이터를 다시 역변환
 #         forecast_plot(train, test, y_preds, pred_upper, pred_lower)
-        forecast_plot(np.expm1(train), np.expm1(test), np.expm1(y_preds), np.expm1(pred_upper), np.expm1(pred_lower))
-    else:
-        print('입력값이 유요하지 않습니다.')
-
-# COMMAND ----------
-
-forecast(train_raw, test_raw, model_log_311, 'log')
-
-# COMMAND ----------
-
-forecast(train_raw, test_raw, model_log_311, 'log')
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-# r2 score가 상대적으로 1에 가까움.. # 같은 값으로 나옴, 예측을 하긴했지만, 편향적인 모델이다.
-forecast(train, test, model_011)
-
-# COMMAND ----------
-
-forecast(train, test, model_711)
+        forecast_plot(np.expm1(train), test, y_preds, np.expm1(pred_upper), np.expm1(pred_lower))
+    else :
+        pass
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ###### pdq 비교 011 vs 711
-# MAGIC - 짧은기간이라그런지 비슷하다. 그러니 평가지표가 더 좋고 ar의 p-value가 적합한 "011"을 선택한다.
+# MAGIC ###### raw+차분
+
+# COMMAND ----------
+
+#110
+forecast(train_raw, test_raw, model_110, 'raw')
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ###4) 성능 평가
-# MAGIC https://mizykk.tistory.com/102
-# MAGIC - R2 : (1에 가까울 수록 좋음)분산기반 예측 성능 평가 
-# MAGIC - MAE : (0에 가까울 수록 좋음)(Scale영향)
-# MAGIC   - 오차들의 절대값 평균, MSE보다 이상치에 덜 민감
-# MAGIC - MSE : (0에 가까울 수록 좋음)(Scale영향)
-# MAGIC   - 예측값과 실체값의 차이인 "오차들의 제곱 평균", 이상치에 민감
-# MAGIC - RMSE : (0에 가까울 수록 좋음)(Scale영향)
-# MAGIC   - MSE의 루트값, 오류지표를 실제값과 유사한 단위로 변환하여 해석이 용이
-# MAGIC - RMSLE : (Scale영향)
-# MAGIC   - 오차를 구할 때 RMSE에 log 변환
-# MAGIC   - 이상치에 덜 민감, 상대적 error값, under estimation에 큰 패널티
-# MAGIC   
-# MAGIC   
-# MAGIC |방법|	Full|	잔차 계산|	이상치 영향|
-# MAGIC |----|----|----|----|
-# MAGIC |MAE|	Mean Absolute Error|	Absolute Value|	Yes|
-# MAGIC |MSE|	Mean Squared Error|	Square	|No|
-# MAGIC |RMSE|	Root Mean Squared Error|	Square	|No|
-# MAGIC |MAPE|	Mean Absolute Percentage Error|	Absolute Value	|Yes|
-# MAGIC |MPE|	Mean Percentage Error|	N/A	|Yes|
+# MAGIC ###### log+차분
 
 # COMMAND ----------
 
-# from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
-# print(len(test), len(test_preds[0]))
-# y = test
-# # y_preds = test_preds[0]
-# print('r2_score : {:.3f}'.format(r2_score(y, y_preds)))
-# print('MAE : {:.6f}'.format(mean_absolute_error(y, y_preds))) # 이상치 영향 받음
-# print('MSE : {:.6f}'.format(mean_squared_error(y, y_preds))) # 특이 값이 커서  값이 너무 큼
-# print('RMSE : {:.6f}'.format(np.sqrt(mean_squared_error(y, y_preds))))
-# print('RMSLE : {:.6f}'.format(np.sqrt(mean_squared_log_error(y, y_preds))))
+forecast(train_raw, test_raw, model_log_011, 'log')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ###### 실험 종합
+# MAGIC - log차분모델은 constant값이 유효하지 않아 nc설정이 필요하다.
+# MAGIC 
+# MAGIC |Data|PDQ|R2|MAE|MSE|RMSE|RMSLE|MAPE|
+# MAGIC |----|----|----|----|----|----|----|----|
+# MAGIC |Raw차분|110|-2.4906|63.5971| 4636.1154| 68.0890| 0.0503| 4.6023| 
+# MAGIC |Raw차분|111	|-2.7731|	66.2462|	5011.3076| 	70.7906| 	0.0524| 	4.7945| 
+# MAGIC |Raw차분|711	|-0.6974|	44.0199| 	2254.4264| 	47.4808| 	0.0348| 	3.1861| 
+# MAGIC |Log차분|010	|-0.3871|	0.0264| 	0.0010| 	0.0313| 	0.0038| 	0.3646| 
+# MAGIC |Log차분|011	|-5.9524|	0.0577| 	0.0049| 	0.0702| 	0.0085| 	0.7975| 
+# MAGIC |Log차분|011_nc	|-7.6138|	0.0734|	0.0061| 	0.0781| 	0.0095| 	1.0155| 
+# MAGIC |Log차분|311	|-13.3833|	0.0838| 	0.0102| 	0.1009| 	0.0121| 	1.1570| 
+# MAGIC |Log차분|311_nc	|-8.1046|	0.0756| 	0.0064| 	0.0803| 	0.0098| 	1.0458| 
+# MAGIC |Log차분|516	|-138.0773|	0.2769| 	0.0985| 	0.3139| 	0.0372| 	3.8273| 
+# MAGIC |Log차분|516_nc|-6.6581|	0.0676|	 0.0054| 	0.0736| 	0.0090| 	0.9350|
 
 # COMMAND ----------
 
@@ -460,14 +454,14 @@ forecast(train, test, model_711)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 5) 모수 추정(pass)
+# MAGIC ### 4) 모수 추정(pass)
 # MAGIC - 시간부족으로 생략
 # MAGIC - 1.LSE방법, 2. MLE 방법
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 6) 모형 진단(pass)
+# MAGIC ### 5) 모형 진단(pass)
 # MAGIC - 잔차 분석, 시간부족으로 생략
 # MAGIC - 예측값 정상성 검증
 # MAGIC - 예측값의 잔차 ACF를 그려 정상성을 체크한다.
@@ -475,12 +469,27 @@ forecast(train, test, model_711)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### [실험2] 계절성 조정 데이터
+# MAGIC ### 계절성 조정 데이터
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC #### 1) 모수 설정
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+train_adj = df_adjusted[:'2021']
+test_adj = df_adjusted['2022-01-10':]
+print(len(train_adj), train_adj.tail())
+print(len(test_adj), test_adj.head())# 차분먼저하고 로그변환하면 오류남..
 
 # COMMAND ----------
 
@@ -518,14 +527,7 @@ forecast(train_adj, test_adj, model_adj_011)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### [실험1&2 요약]
-# MAGIC - [실험1] pdq 비교 011 vs 711 :  짧은기간이라그런지 비슷하다. 그러니 평가지표가 더 좋고 ar의 p-value가 적합한 "011"을 선택한다.
-# MAGIC - [실험2] 데이터 비교 raw011 vs adj011 : 위와 상동..역시 계절성 영향은 거의 없었구만..비슷하지만 adj가 소폭 지표가 더 좋다. adj011을 선택해도 되지 않을까?
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### 1-2. SARIMA
+# MAGIC ## 2. SARIMA(Pass)
 # MAGIC - PDQs, 시계열분해 결과 1일단위 1년 주기이므로 s는 365로 설정한다
 # MAGIC - s 인자, 데이터 순환주기 아이디어 필요
 # MAGIC   - 데이터가 월단위로 분리되거 계절주기가 1년이면 s를 12로 설정
@@ -538,7 +540,7 @@ forecast(train_adj, test_adj, model_adj_011)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 1-3. Auto ARIMA
+# MAGIC ## 3. Auto ARIMA
 # MAGIC - auto arima를 쓰면 모두 자동으로 값을 찾아주고,  신규 관측값 refresh(update)도 가능하다.
 # MAGIC - https://assaeunji.github.io/data%20analysis/2021-09-25-arimastock/
 
@@ -550,12 +552,7 @@ forecast(train_adj, test_adj, model_adj_011)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### [실험3] Basic vs Auto
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 1) 모수설정 및 구축
+# MAGIC ### 1) 모수설정 및 구축
 
 # COMMAND ----------
 
@@ -598,7 +595,7 @@ model_adj_pm = pm.auto_arima(y = train_adj, d = 1, start_p = 0
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 2) 모형 refresh 예측 및 평가
+# MAGIC ### 2) 모형 refresh 예측 및 평가
 
 # COMMAND ----------
 
