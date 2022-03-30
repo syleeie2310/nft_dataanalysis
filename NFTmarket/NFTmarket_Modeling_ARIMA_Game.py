@@ -110,7 +110,7 @@ def evaluation(y, y_preds) :
 # 최적 P와 q값 찾는 함수
 from statsmodels.tsa.arima_model import ARIMA
 
-def arima_aic_check(data, pdq, sort = 'AIC', datatype):
+def arima_aic_check(data, pdq, datatype, sort = 'AIC'):
     order_list = []
     aic_list = []
     bic_list = []
@@ -144,18 +144,21 @@ def arima_aic_check(data, pdq, sort = 'AIC', datatype):
                 bic_list.append(bic)
 
                  # 예측(과거 예측)
-                preds= model_fit.forecast(steps=len(data.index))
+                preds = model_fit.forecast(steps=len(data.index))
                 # 평가
-                    
+                print(preds[0])
                 if datatype == 'raw':
+                    y_preds = preds[0]
                     pass
                 elif datatype == 'log':
-                    y =  np.expm1(data) 
+                    data =  np.expm1(data) 
                     y_preds = np.expm1(preds[0]) 
                 else:
                     print('입력값이 유효하지 않습니다.')
-    
-                r2, mae, mse, rmse, rmsle, mape = evaluation(y, y_preds)
+                print(c_order)
+                print(y_preds)
+                print('='*50)
+                r2, mae, mse, rmse, rmsle, mape = evaluation(data, y_preds)
                 eval_list = [r2, mae, mse, rmse, rmsle, mape]
 
                 for i in range(len(eval_list_list)) :
@@ -175,7 +178,7 @@ def arima_aic_check(data, pdq, sort = 'AIC', datatype):
 
 # COMMAND ----------
 
-# 210
+# rmse 큰 차이 없음, 
 guide = round(np.log1p(len(train_raw)))
 pdq = (guide, 1, guide)
 result = arima_aic_check(train_raw, pdq, 'raw')
@@ -189,38 +192,19 @@ result
 
 # COMMAND ----------
 
+# rmse는 큰차이가 없다.
 guide = round(np.log1p(len(train_raw)))
 pdq = (guide, 1, guide)
-result = arima_aic_check(np.log1p(train_raw), pdq, 'log')
-print(result)
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
+result1 = arima_aic_check(train_raw, pdq, 'log')
+result1
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ##### pdq 실험 종합
-# MAGIC - 결론 : rmse가 낮은 log+차분 데이터의 010을 선택한다???
-# MAGIC 
-# MAGIC - raw+차분
-# MAGIC   - d1,q0 일때 p1이 최적 : aic 7950.88, bic 7967.11, rmse 1923.14
-# MAGIC   - d1,q1 일때 p1이 최적 : aic 7948.86, bic 7970.50, rmse 1910.89
-# MAGIC   - d1 일때 p6,q3이 최적 : aic 7860.90, bic 7914.99, rmse 2004.75   
-# MAGIC 
-# MAGIC - log+차분
-# MAGIC   - d1,q0일때 p0가 최적 : aic -2741.07, bic -2730.24, rmse 7.31
-# MAGIC   - d1,q1일때 p0가 최적 : aic -2863.63, bic -2847.40, rmse 8.81
-# MAGIC   
-# MAGIC   -> p0은 말이안되지... 예측을 못하잖아...ㅜㅜ
-# MAGIC   - > 516이 좋은건가?
-# MAGIC   
-# MAGIC   - d1 일때 : 정상성 오류로 모델 fit 실패
+# MAGIC - 게임카테고리는.. pdq값과는 다르게 rmse값이 큰 차이가 없다.
+# MAGIC - raw 차분 : aic값이 유의미한 후보 : p는 2,3 4, 5  q는 0, 1
+# MAGIC - log 차분 : aic값이 유의미한 후보 
 
 # COMMAND ----------
 
@@ -231,64 +215,138 @@ print(result)
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ### [함수] 모델링
+
+# COMMAND ----------
+
+from statsmodels.tsa.arima_model import ARIMA
+
+def arima(data, p, d, q, datatype, constant = 'c'):
+    order = (p, d, q)
+    dtype = datatype
+    pdq = str(p)+str(d)+str(q)
+    
+    if datatype == 'raw':
+        pass
+    elif datatype == 'log':
+        data = np.log1p(data)
+    else:
+        print('입력값이 유효하지 않습니다.')
+    
+    model = ARIMA(data, order)
+    model_dtype_pdq = model.fit(trend=str(constant))
+    
+    # 모델저장
+    model_dtype_pdq.save(f'/dbfs/FileStore/nft/nft_market_model/model_{dtype}_{pdq}_{constant}.pkl')
+    return model_dtype_pdq.summary()
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC #### raw+차분
+# MAGIC - aic top3를 바탕으로 최적값을 찾아보자
 
 # COMMAND ----------
 
-# 210, 추세포함
-from statsmodels.tsa.arima_model import ARIMA
-
-order = (2, 1, 0)
-model1 = ARIMA(train_raw, order)
-model1_210 = model1.fit()
-# 모델저장
-model1_210.save('/dbfs/FileStore/nft/nft_market_model/model1_210.pkl')
-model1_210.summary()
+# pvalue 유의하지 않음
+arima(train_raw, 2, 1, 0, 'raw')
 
 # COMMAND ----------
 
-# 210, 추세포함
-from statsmodels.tsa.arima_model import ARIMA
-
-order = (2, 1, 1)
-model1 = ARIMA(train_raw, order)
-model1_211 = model1.fit()
-# 모델저장
-model1_211.save('/dbfs/FileStore/nft/nft_market_model/model1_211.pkl')
-model1_211.summary()
+# pvalue 유의하지 않음
+arima(train_raw, 2, 1, 1, 'raw')
 
 # COMMAND ----------
 
+# pvalue 유의하지 않음
+arima(train_raw, 4, 1, 0, 'raw')
 
+# COMMAND ----------
+
+# pvalue 유의하지 않음
+arima(train_raw, 4, 1, 1, 'raw')
+
+# COMMAND ----------
+
+# pvalue 유의하지 않음
+arima(train_raw, 5, 1, 1, 'raw')
+
+# COMMAND ----------
+
+# pvalue 유의하지 않음
+arima(train_raw, 1, 1, 0, 'raw')
+
+# COMMAND ----------
+
+# pvalue 유의함, constant 유의안함
+arima(train_raw, 1, 1, 1, 'raw')
+
+# COMMAND ----------
+
+# pvalue 유의함, constant 유의안함
+arima(train_raw, 1, 1, 1, 'raw', 'nc')
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC #### log+차분
+# MAGIC - aic top3 를 바탕으로 최적값을 찾아보자
+# MAGIC 610, 710, 514, 
 
 # COMMAND ----------
 
-# 011, contant 값이 0.05보다 높다.
-from statsmodels.tsa.arima_model import ARIMA
-
-order = (0, 1, 1)
-model = ARIMA(np.log1p(train_raw), order)
-model_log_011 = model.fit()
-# 모델저장
-model_log_011.save('/dbfs/FileStore/nft/nft_market_model/model_log_011.pkl')
-model_log_011.summary()
+# 유의하지 않음
+arima(train_raw, 2, 1, 0, 'log')
 
 # COMMAND ----------
 
-# 011_nc, contant 값이 유효하다.
-from statsmodels.tsa.arima_model import ARIMA
+# 유의하지 않음
+arima(train_raw, 2, 1, 1, 'log')
 
-order = (0, 1, 1)
-model = ARIMA(np.log1p(train_raw), order)
-model_log_011_nc = model.fit(trend='nc')
-# 모델저장
-model_log_011_nc.save('/dbfs/FileStore/nft/nft_market_model/model_log_011_nc.pkl')
-model_log_011_nc.summary()
+# COMMAND ----------
+
+# 유의안함
+arima(train_raw, 4, 1, 0, 'log')
+
+# COMMAND ----------
+
+# 유의함, const 유의안함
+arima(train_raw, 4, 1, 1, 'log')
+
+# COMMAND ----------
+
+# 유의함, const 유의gka
+arima(train_raw, 4, 1, 1, 'log', 'nc')
+
+# COMMAND ----------
+
+# 유의안함
+arima(train_raw, 5, 1, 1, 'log')
+
+# COMMAND ----------
+
+# 유의 안함
+arima(train_raw, 5, 1, 4, 'log')
+
+# COMMAND ----------
+
+# 유의 안함
+arima(train_raw, 6, 1, 0, 'log')
+
+# COMMAND ----------
+
+# 유의 안함
+arima(train_raw, 6, 1, 1, 'log')
+
+# COMMAND ----------
+
+# 유의 안함
+arima(train_raw, 7, 1, 0, 'log')
+
+# COMMAND ----------
+
+# 유의 안함
+arima(train_raw, 7, 1, 1, 'log')
 
 # COMMAND ----------
 
