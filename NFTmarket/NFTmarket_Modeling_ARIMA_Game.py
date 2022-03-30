@@ -108,7 +108,7 @@ def evaluation(y, y_preds) :
 # COMMAND ----------
 
 # 최적 P와 q값 찾는 함수
-from statsmodels.tsa.arima_model import ARIMA
+from statsmodels.tsa.arima_model import ARIMA, ARIMAResults
 
 def arima_aic_check(data, pdq, datatype, sort = 'AIC'):
     order_list = []
@@ -178,11 +178,11 @@ def arima_aic_check(data, pdq, datatype, sort = 'AIC'):
 
 # COMMAND ----------
 
-# rmse 큰 차이 없음, 
-guide = round(np.log1p(len(train_raw)))
-pdq = (guide, 1, guide)
-result = arima_aic_check(train_raw, pdq, 'raw')
-result
+# # rmse 큰 차이 없음, 
+# guide = round(np.log1p(len(train_raw)))
+# pdq = (guide, 1, guide)
+# result = arima_aic_check(train_raw, pdq, 'raw')
+# result
 
 # COMMAND ----------
 
@@ -192,11 +192,11 @@ result
 
 # COMMAND ----------
 
-# rmse는 큰차이가 없다.
-guide = round(np.log1p(len(train_raw)))
-pdq = (guide, 1, guide)
-result1 = arima_aic_check(train_raw, pdq, 'log')
-result1
+# # rmse는 큰차이가 없다.
+# guide = round(np.log1p(len(train_raw)))
+# pdq = (guide, 1, guide)
+# result1 = arima_aic_check(train_raw, pdq, 'log')
+# result1
 
 # COMMAND ----------
 
@@ -221,7 +221,7 @@ result1
 
 from statsmodels.tsa.arima_model import ARIMA
 
-def arima(data, p, d, q, datatype, constant = 'c'):
+def arima(data, p, d, q, datatype, const = 'c'):
     order = (p, d, q)
     dtype = datatype
     pdq = str(p)+str(d)+str(q)
@@ -234,11 +234,11 @@ def arima(data, p, d, q, datatype, constant = 'c'):
         print('입력값이 유효하지 않습니다.')
     
     model = ARIMA(data, order)
-    model_dtype_pdq = model.fit(trend=str(constant))
+    model_fit = model.fit(trend=str(const))
     
     # 모델저장
-    model_dtype_pdq.save(f'/dbfs/FileStore/nft/nft_market_model/model_{dtype}_{pdq}_{constant}.pkl')
-    return model_dtype_pdq.summary()
+    model_fit.save(f'/dbfs/FileStore/nft/nft_market_model/model_{dtype}_{pdq}_{const}.pkl')
+    return model_fit.summary()
 
 # COMMAND ----------
 
@@ -469,7 +469,50 @@ def forecast (train, test, modelName, datatype):
 # COMMAND ----------
 
 #110
-forecast(train_raw, test_raw, model_110, 'raw')
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_110_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'raw')
+
+# COMMAND ----------
+
+#111
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_111_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'raw')
+
+# COMMAND ----------
+
+#111_nc
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_111_nc.pkl')
+forecast(train_raw, test_raw, model_loaded, 'raw')
+
+# COMMAND ----------
+
+#210
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_210_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'raw')
+
+# COMMAND ----------
+
+#211
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_211_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'raw')
+
+# COMMAND ----------
+
+#410
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_410_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'raw')
+
+# COMMAND ----------
+
+#411
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_411_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'raw')
+
+# COMMAND ----------
+
+#511
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_raw_511_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'raw')
 
 # COMMAND ----------
 
@@ -478,7 +521,69 @@ forecast(train_raw, test_raw, model_110, 'raw')
 
 # COMMAND ----------
 
-forecast(train_raw, test_raw, model_log_011, 'log')
+#210
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_210_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+#211
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_211_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+#410
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_410_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+#411
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_411_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+#411_nc
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_411_nc.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+#511
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_511_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+#514
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_514_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+#610
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_610_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+#611
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_611_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+#710
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_710_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
+
+# COMMAND ----------
+
+#711
+model_loaded = ARIMAResults.load('/dbfs/FileStore/nft/nft_market_model/model_log_711_c.pkl')
+forecast(train_raw, test_raw, model_loaded, 'log')
 
 # COMMAND ----------
 
