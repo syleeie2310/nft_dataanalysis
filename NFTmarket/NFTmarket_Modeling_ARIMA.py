@@ -1,6 +1,11 @@
 # Databricks notebook source
 import numpy as np
 import pandas as pd
+from statsmodels.tsa.arima_model import ARIMA
+import matplotlib.pyplot as plt
+from warnings import filterwarnings
+filterwarnings("ignore")
+plt.style.use("ggplot")
 
 # COMMAND ----------
 
@@ -34,24 +39,16 @@ data.tail()
 
 # raw 데이터
 train_raw = data.loc[:'2021', 'collectible_average_usd']
-test_raw = data.loc['2022-02':, 'collectible_average_usd']
+test_raw = data.loc['2022-01':, 'collectible_average_usd']
 print(len(train_raw), train_raw.tail())
 print(len(test_raw), test_raw.head())
 
 # COMMAND ----------
 
-# 계절성 조정 데이터
-train_adj = df_adjusted[:'2022-01']
-test_adj = df_adjusted['2022-02':]
-print(len(train_adj), train_adj.tail())
-print(len(test_adj), test_adj.head())
-
-# COMMAND ----------
-
 import plotly.express as px
 fig = px.line()
-fig.add_scatter(x=train.index, y = train, mode="lines", name = "train")
-fig.add_scatter(x=test.index, y = test, mode="lines", name = "test")
+fig.add_scatter(x=train_raw.index, y = train_raw, mode="lines", name = "train")
+fig.add_scatter(x=test_raw.index, y = test_raw, mode="lines", name = "test")
 fig.update_layout(title = '<b>[collectible_average_usd] Raw data <b>', title_x=0.5, legend=dict(orientation="h", xanchor="right", x=1, y=1.1))
 fig.update_yaxes(ticklabelposition="inside top", title=None)
 fig.show()
@@ -70,12 +67,7 @@ fig.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 1-1. Basic ARIMA
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 1) 모수 설정
+# MAGIC ### 1) 모수 설정
 
 # COMMAND ----------
 
@@ -116,6 +108,8 @@ def evaluation(y, y_preds) :
 # COMMAND ----------
 
 # 최적 P와 q값 찾는 함수
+from statsmodels.tsa.arima_model import ARIMA
+
 def arima_aic_check(data, pdq, sort = 'AIC'):
     order_list = []
     aic_list = []
@@ -129,26 +123,28 @@ def arima_aic_check(data, pdq, sort = 'AIC'):
     eval_list_list = [r2_list, mae_list, mse_list, rmse_list, rmsle_list, mape_list]
     p, d, q = pdq
     for i in tqdm(range(p+1)):
-        for j in range(q+1): 
+        for j in tqdm(range(q+1)): 
             model = ARIMA(data, order=(i,d,j))
             try:
                 model_fit = model.fit()
-            except:
-                pass
                 c_order = f'p:{i} d:{d} q:{j}'
                 order_list.append(c_order)
                 aic = model_fit.aic
                 aic_list.append(aic)
                 bic = model_fit.bic # 변수가 많을 때 패널티를 더 많이 줌
                 bic_list.append(bic)
+
                  # 예측(과거 예측)
                 preds= model_fit.forecast(steps=len(data.index))
                 # 평가
                 r2, mae, mse, rmse, rmsle, mape = evaluation(data, preds[0])
                 eval_list = [r2, mae, mse, rmse, rmsle, mape]
-                for i in range(len(eval_list_list)) :
-                    eval_list_list[i].append(eval_list[i])
 
+                for i in range(len(eval_list_list)) :
+                    eval_list_list[i].append(eval_list[i]) # 로그 역변환 안해도 될 듯
+            except:
+                pass
+            
     result_df = pd.DataFrame(list(zip(order_list, aic_list, bic_list, r2_list, mae_list, mse_list, rmse_list, rmsle_list, mape_list)),columns=['order','AIC','BIC','r2', 'mae', 'mse', 'rmse', 'rmsle', 'mape'])
     result_df.sort_values(sort, inplace=True)
     return result_df
@@ -193,14 +189,6 @@ print(result)
 
 # COMMAND ----------
 
-# 15로 더 올려보자. 
-guide = 15
-pdq = (guide, 1, guide)
-result = arima_aic_check(train_raw, pdq)
-print(result)
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ##### log+차분
 # MAGIC - 로그데이터는 p 0이 가장 rmse 값이 낮음
@@ -221,19 +209,11 @@ arima_aic_check(np.log1p(train_raw), pdq)
 
 # COMMAND ----------
 
-# ar과ma같이 함께 높아지니 정상성을 잃어 계산이 안되는 듯
+#  줄여서 해보자.// 안됨 확실
 guide = round(np.log1p(len(train_raw)))
 pdq = (guide, 1, guide)
 result = arima_aic_check(np.log1p(train_raw), pdq)
-print(result)
-
-# COMMAND ----------
-
-#  줄여서 해보자.// 안됨 확실
-guide = 5
-pdq = (guide, 1, guide)
-result = arima_aic_check(np.log1p(train_raw), pdq)
-print(result)
+result
 
 # COMMAND ----------
 
@@ -249,29 +229,53 @@ print(result)
 # MAGIC - log+차분
 # MAGIC   - d1,q0일때 p0가 최적 : aic -2741.07, bic -2730.24, rmse 7.31
 # MAGIC   - d1,q1일때 p0가 최적 : aic -2863.63, bic -2847.40, rmse 8.81
+# MAGIC   
+# MAGIC   -> p0은 말이안되지... 예측을 못하잖아...ㅜㅜ
+# MAGIC   - > 516이 좋은건가?
+# MAGIC   
 # MAGIC   - d1 일때 : 정상성 오류로 모델 fit 실패
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 2) 모형 구축
+# MAGIC ### 2) 모형 구축
 # MAGIC - log데이터 및 선정된 데이터 및 pdq로 모형 구축
+
+# COMMAND ----------
+
+# 이건 또 왜 안되는겨 ㅜㅜㅜ
+# from statsmodels.tsa.arima_model import ARIMA
+
+# order = (6, 1, 3)
+# model = ARIMA(train_raw, order)
+# model_613 = model.fit()
+# # 모델저장
+# model_613.save('/dbfs/FileStore/nft/nft_market_model/model_613.pkl')
+# model_613.summary()
+
+# COMMAND ----------
+
+import numpy as np
+import pandas as pd
+
 
 # COMMAND ----------
 
 # p0 모형 구축, ar t검정 적합
 # constant 0.05 이하, t검정 0.05 이하, 
-order = (0, 1, 0)
-model = ARIMA(np.log1p(train), order)
-model_log_010 = model.fit()
+from statsmodels.tsa.arima_model import ARIMA
+
+order = (3, 1, 1)
+model = ARIMA(np.log1p(train_raw), order)
+model_log_311 = model.fit()
 # 모델저장
-model_log_010.save('/dbfs/FileStore/nft/nft_market_model/model_log_010.pkl')
-model_log_010.summary()
+model_log_311.save('/dbfs/FileStore/nft/nft_market_model/model_log_311.pkl')
+model_log_311.summary()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 3) 미래 예측 및 성능평가
+# MAGIC ### 3) 예측 및 평가
 # MAGIC - 날짜로 예측 어케함?
 
 # COMMAND ----------
@@ -281,14 +285,21 @@ model_log_010.summary()
 
 # COMMAND ----------
 
-# 한스텝씩 예측
-def forecast_one_step(test, modelName):
-      # 한 스텝씩!, 예측구간 출력
-    y_pred, stderr, interval  = modelName.forecast(steps=len(test.index))  # 예측값, 표준오차(stderr), 신뢰구간(upperbound, lower bound), 
-    return (
-        y_pred.tolist()[0],
-        np.asarray(interval).tolist()[0]
-    )
+# def forecast_step(test, modelName):
+#       # 한 스텝씩!, 예측구간 출력
+#     y_pred, stderr, interval  = modelName.forecast(steps=len(test.index))  # 예측값, 표준오차(stderr), 신뢰구간(upperbound, lower bound), 
+#     print(y_pred.tolist()[0])
+#     print('='*50)
+#     print(np.asarray(interval).tolist()[0])
+#     print('='*50)
+#     print(y_pred)
+#     print('='*50)
+#     print(y_pred.tolist())
+#     print('='*50)
+#     return (
+#         y_pred.tolist()[0],
+#         np.asarray(interval).tolist()[0]
+#     )
 
 # COMMAND ----------
 
@@ -321,7 +332,7 @@ def forecast_plot(train, test, y_preds, pred_upper, pred_lower):
                     ,hoverinfo="skip"
                     ,showlegend=False)
     ])
-    fig.update_layout(title = '<b>[collectible_average_usd] Raw data ARIMA(0,1,1)<b>', title_x=0.5, legend=dict(orientation="h", xanchor="right", x=1, y=1.2))
+    fig.update_layout(title = '<b>[collectible_average_usd] Raw data ARIMA<b>', title_x=0.5, legend=dict(orientation="h", xanchor="right", x=1, y=1.2))
     fig.update_yaxes(ticklabelposition="inside top", title=None)
     fig.show()
 
@@ -332,24 +343,57 @@ def forecast_plot(train, test, y_preds, pred_upper, pred_lower):
 
 # COMMAND ----------
 
-def forecast (train, test, modelName):
+def forecast (train, test, modelName, datatype):
     y_preds = []
     pred_upper = []
     pred_lower = []
-    temp = train.values
     
-    for new_ob in tqdm(test):
-        y_pred, interval = forecast_one_step(test, modelName) 
-        y_preds.append(y_pred)
-        pred_upper.append(interval[1])
-        pred_lower.append(interval[0])
+    if datatype == 'raw':
+        pass
+    elif datatype == 'log':
+        train = np.log1p(train)
+        test = np.log1p(test)
+    else:
+        print('입력값이 유요하지 않습니다.')
         
+    # 예측
+    y_pred, stderr, interval  = modelName.forecast(steps=len(test.index)) 
+    y_preds = y_pred.tolist()      
+    pred_upper.append(interval[1])
+    pred_lower.append(interval[0])
+
     # 성능 평가지표 출력
-    r2, mae, mse, rmse, rmsle = evaluation(test, y_preds)
-    print(f'r2: {r2}, mae: {mae}, mse: {mse}, rmse: {rmse}, rmsle: {rmsle}')
-    
-    # 예측결과 시각화    
-    forecast_plot(train, test, y_preds, pred_upper, pred_lower)
+    r2, mae, mse, rmse, rmsle, mape = evaluation(test, y_preds)
+    print(f'r2: {r2}, mae: {mae}, mse: {mse}, rmse: {rmse}, rmsle: {rmsle}, mape: {mape}')
+
+    # 예측결과 시각화 
+    if datatype == 'raw':
+        forecast_plot(train, test, y_preds, pred_upper, pred_lower)
+    elif datatype == 'log': # 로그변환된 데이터를 다시 역변환
+#         forecast_plot(train, test, y_preds, pred_upper, pred_lower)
+        forecast_plot(np.expm1(train), np.expm1(test), np.expm1(y_preds), np.expm1(pred_upper), np.expm1(pred_lower))
+    else:
+        print('입력값이 유요하지 않습니다.')
+
+# COMMAND ----------
+
+forecast(train_raw, test_raw, model_log_311, 'log')
+
+# COMMAND ----------
+
+forecast(train_raw, test_raw, model_log_311, 'log')
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
@@ -369,7 +413,7 @@ forecast(train, test, model_711)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ####4) 성능 평가
+# MAGIC ###4) 성능 평가
 # MAGIC https://mizykk.tistory.com/102
 # MAGIC - R2 : (1에 가까울 수록 좋음)분산기반 예측 성능 평가 
 # MAGIC - MAE : (0에 가까울 수록 좋음)(Scale영향)
@@ -416,14 +460,14 @@ forecast(train, test, model_711)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 5) 모수 추정(pass)
+# MAGIC ### 5) 모수 추정(pass)
 # MAGIC - 시간부족으로 생략
 # MAGIC - 1.LSE방법, 2. MLE 방법
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### 6) 모형 진단(pass)
+# MAGIC ### 6) 모형 진단(pass)
 # MAGIC - 잔차 분석, 시간부족으로 생략
 # MAGIC - 예측값 정상성 검증
 # MAGIC - 예측값의 잔차 ACF를 그려 정상성을 체크한다.

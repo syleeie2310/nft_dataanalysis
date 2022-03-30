@@ -25,7 +25,7 @@ data.info()
 
 # raw 데이터
 train = data.loc[:'2021', 'collectible_average_usd']
-test = data.loc['2022':, 'collectible_average_usd']
+test = data.loc['2022-02':, 'collectible_average_usd']
 print(len(train), train.tail())
 print(len(test), test.head())
 
@@ -228,3 +228,47 @@ forecast = m_cp191001.fit(df).predict(future)
 fig = m_cp191001.plot(forecast, figsize=(20,6), xlabel='Date', ylabel='Value')
 ax = fig.gca()
 ax.set_title("[Collectible_average_usd] Linear Forecast - CP 191001 ", size=34)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 디폴트 모델(m_cp)로 예측 및 평가
+
+# COMMAND ----------
+
+m_cp = Prophet(growth='linear', changepoint_prior_scale=0.05)
+forecast = m_cp.fit(df).predict(future)
+fig = m_cp.plot(forecast, figsize=(20,6), xlabel='Date', ylabel='Value')
+ax = fig.gca()
+ax.set_title("[Collectible_average_usd] Linear Forecast - CP 0.05(default) ", size=34)
+
+# COMMAND ----------
+
+y_preds.tail()
+
+# COMMAND ----------
+
+y = test
+y_preds = forecast['yhat'].values[-20:]
+# y_preds.tail()
+# len(y_preds[-20:])
+
+# COMMAND ----------
+
+pd.options.display.float_format = '{: .4f}'.format
+
+# COMMAND ----------
+
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
+r2 = r2_score(y, y_preds) # 선형회귀 모델 설명력
+mae = mean_absolute_error(y, y_preds) # 평균 절대 오차
+mape = np.mean(np.abs((y - y_preds) / y)) * 100  # 평균 절대 비율 오차 : 시계열 주요 평가 지표 , # mape가 inf인 이유는 실제y값인 0으로 나눴기 때문, 
+mse = mean_squared_error(y, y_preds) # 평균 오차 제곱합
+rmse = np.sqrt(mean_squared_error(y, y_preds)) # 제곱근 평균 오차제곱합 : 시계열 주요 평가 지표, 작을수록 좋다.
+rmsle = np.sqrt(mean_squared_log_error(y, y_preds))
+print('MAE: %.3f' % mae)
+print('MSE: %.3f' % mse)
+print('RMSE: %.3f' % rmse)
+print('MAPE: %.3f' % mape)
+print('RMSLE: %.3f' % rmsle)
+print('R2: %.3f' % r2)
