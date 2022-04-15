@@ -544,6 +544,16 @@ fig.show()
 
 # COMMAND ----------
 
+import pandas as pd
+from statsmodels.tsa.seasonal import seasonal_decompose
+df = data['game_average_usd']
+decomposition = seasonal_decompose(df, model='additive', period=365) 
+# 일자데이터... 기간 어케함 ㅜ, 자동 달력변동이 안되고 덧셈분해만 가능
+fig = plot_seasonal_decompose(decomposition, dates=df.index)
+fig.show()
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ##### log변환 데이터
 
@@ -670,3 +680,24 @@ fig = go.Figure([
 fig.update_layout(title = '<b>[collectible_average_usd] 계절성 조정 비교<b>', title_x=0.5, legend=dict(orientation="h", xanchor="right", x=1, y=1.1))
 fig.update_yaxes(ticklabelposition="inside top", title=None)
 fig.show()
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 상호상관분석(Cross Correlation)
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
