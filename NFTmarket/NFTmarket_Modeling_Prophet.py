@@ -25,9 +25,10 @@ data.info()
 
 # raw 데이터
 train = data.loc[:'2021', 'collectible_average_usd']
-test = data.loc['2022-01-10':, 'collectible_average_usd']
+test = data.loc['2022-01-10':, 'collectible_average_usd'] #이상치 9일 제외
 print(len(train), train.tail())
 print(len(test), test.head())
+# 
 
 # COMMAND ----------
 
@@ -77,8 +78,8 @@ m.fit(df)
 # COMMAND ----------
 
 # 예측 범위 (인덱스) 만들기
-future = m.make_future_dataframe(periods=42)
-future.tail()
+future = m.make_future_dataframe(periods=51)
+future.tail(51)
 
 # COMMAND ----------
 
@@ -89,7 +90,7 @@ forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()#yhat : 응답변수�
 # COMMAND ----------
 
 from prophet.plot import plot_plotly, plot_components_plotly
-plot_plotly(m, forecast, figsize=(1600,700))
+plot_plotly(m, forecast, figsize=(700,500))
 
 # COMMAND ----------
 
@@ -245,13 +246,42 @@ ax.set_title("[Collectible_average_usd] Linear Forecast - CP 0.05(default) ", si
 # COMMAND ----------
 
 y = test
-y_preds = forecast['yhat'].values[-42:]
-# y_preds.tail()
-# len(y_preds[-20:])
+y_preds = forecast['yhat'].values[-42:] # 끝에서 42니까, 1월10일부터임
+print(len(test), len(y_preds))
 
 # COMMAND ----------
 
 pd.options.display.float_format = '{: .4f}'.format
+
+# COMMAND ----------
+
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
+r2 = r2_score(y, y_preds) # 선형회귀 모델 설명력
+mae = mean_absolute_error(y, y_preds) # 평균 절대 오차
+mape = np.mean(np.abs((y - y_preds) / y)) * 100  # 평균 절대 비율 오차 : 시계열 주요 평가 지표 , # mape가 inf인 이유는 실제y값인 0으로 나눴기 때문, 
+mse = mean_squared_error(y, y_preds) # 평균 오차 제곱합
+rmse = np.sqrt(mean_squared_error(y, y_preds)) # 제곱근 평균 오차제곱합 : 시계열 주요 평가 지표, 작을수록 좋다.
+rmsle = np.sqrt(mean_squared_log_error(y, y_preds))
+print('MAE: %.4f' % mae)
+print('MSE: %.4f' % mse)
+print('RMSE: %.4f' % rmse)
+print('MAPE: %.4f' % mape)
+print('RMSLE: %.4f' % rmsle)
+print('R2: %.4f' % r2)
+
+# COMMAND ----------
+
+m_cp = Prophet(growth='linear', changepoint_prior_scale=0.05, daily_seasonality=True)
+forecast = m_cp.fit(df).predict(future)
+fig = m_cp.plot(forecast, figsize=(20,6), xlabel='Date', ylabel='Value')
+ax = fig.gca()
+ax.set_title("[Collectible_average_usd] Linear Forecast - CP 0.05(default+Daily Seasonality) ", size=34)
+
+# COMMAND ----------
+
+y = test
+y_preds = forecast['yhat'].values[-42:] # 끝에서 42니까, 1월10일부터임
+print(len(test), len(y_preds))
 
 # COMMAND ----------
 
@@ -276,11 +306,25 @@ print('R2: %.4f' % r2)
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 # raw 데이터
 train = data.loc[:'2021', 'game_average_usd']
-test = data.loc['2022-01-10':, 'game_average_usd']
+test = data.loc['2022':, 'game_average_usd']
 print(len(train), train.tail())
 print(len(test), test.head())
+
+# COMMAND ----------
+
+import plotly.express as px
+fig = px.line()
+fig.add_scatter(x=train.index, y = train, mode="lines", name = "train")
+fig.add_scatter(x=test.index, y = test, mode="lines", name = "test")
+fig.update_layout(title = '<b>[collectible_average_usd] Raw data <b>', title_x=0.5, legend=dict(orientation="h", xanchor="right", x=1, y=1.1))
+fig.update_yaxes(ticklabelposition="inside top", title=None)
+fig.show()
 
 # COMMAND ----------
 
@@ -297,8 +341,8 @@ m.fit(df)
 # COMMAND ----------
 
 # 예측 범위 (인덱스) 만들기
-future = m.make_future_dataframe(periods=42)
-future.tail()
+future = m.make_future_dataframe(periods=51)
+future.tail(42)
 
 # COMMAND ----------
 
@@ -321,7 +365,7 @@ plot_components_plotly(m, forecast, figsize=(1600,300))
 # COMMAND ----------
 
 m_cp = Prophet(growth='linear', changepoint_prior_scale=0.05)
-forecast = m_cp.fit(df).predict(future)
+forecast_mcp = m_cp.fit(df).predict(future)
 fig = m_cp.plot(forecast, figsize=(20,6), xlabel='Date', ylabel='Value')
 ax = fig.gca()
 ax.set_title("[Game_average_usd] Linear Forecast - CP 0.05(default) ", size=34)
@@ -329,9 +373,8 @@ ax.set_title("[Game_average_usd] Linear Forecast - CP 0.05(default) ", size=34)
 # COMMAND ----------
 
 y = test
-y_preds = forecast['yhat'].values[-42:]
-# y_preds.tail()
-# len(y_preds[-20:])
+y_preds = forecast_mcp['yhat'].values[-42:]
+print(len(y), len(y_preds))
 
 # COMMAND ----------
 
@@ -351,4 +394,46 @@ print('R2: %.4f' % r2)
 
 # COMMAND ----------
 
+m_cp = Prophet(growth='linear', changepoint_prior_scale=0.05, daily_seasonality=True)
+forecast_mcp = m_cp.fit(df).predict(future)
+fig = m_cp.plot(forecast, figsize=(20,6), xlabel='Date', ylabel='Value')
+ax = fig.gca()
+ax.set_title("[Game_average_usd] Linear Forecast - CP 0.05(default) ", size=34)
 
+# COMMAND ----------
+
+y = test
+y_preds = forecast_mcp['yhat'].values[-42:]
+print(len(y), len(y_preds))
+
+# COMMAND ----------
+
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
+r2 = r2_score(y, y_preds) # 선형회귀 모델 설명력
+mae = mean_absolute_error(y, y_preds) # 평균 절대 오차
+mape = np.mean(np.abs((y - y_preds) / y)) * 100  # 평균 절대 비율 오차 : 시계열 주요 평가 지표 , # mape가 inf인 이유는 실제y값인 0으로 나눴기 때문, 
+mse = mean_squared_error(y, y_preds) # 평균 오차 제곱합
+rmse = np.sqrt(mean_squared_error(y, y_preds)) # 제곱근 평균 오차제곱합 : 시계열 주요 평가 지표, 작을수록 좋다.
+rmsle = np.sqrt(mean_squared_log_error(y, y_preds))
+print('MAE: %.4f' % mae)
+print('MSE: %.4f' % mse)
+print('RMSE: %.4f' % rmse)
+print('MAPE: %.4f' % mape)
+print('RMSLE: %.4f' % rmsle)
+print('R2: %.4f' % r2)
+
+# COMMAND ----------
+
+from prophet.plot import plot_plotly, plot_components_plotly
+plot_plotly(m_cp, forecast, figsize=(700,500))
+
+# COMMAND ----------
+
+import plotly.express as px
+fig = px.line()
+fig.add_scatter(x=train.index, y = train, mode="lines", name = "train")
+fig.add_scatter(x=test.index, y = test, mode="lines", name = "test")
+fig.add_scatter(x=test.index, y = y_preds, mode="lines", name = "preds")
+fig.update_layout(title = '<b>[game_average_usd] Raw data <b>', title_x=0.5, legend=dict(orientation="h", xanchor="right", x=1, y=1.1))
+fig.update_yaxes(ticklabelposition="inside top", title=None)
+fig.show()
