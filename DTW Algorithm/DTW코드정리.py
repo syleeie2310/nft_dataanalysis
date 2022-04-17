@@ -384,7 +384,7 @@ ax.plot(XV, '-bo', label='CryptoKitties', linewidth=3, markersize=4, markerfacec
 plt.legend(fontsize=(40) )
 ax.plot(YV, '-ro', label='Art Blocks', linewidth=3, markersize=4, markerfacecolor='skyblue', markeredgecolor='skyblue')
 plt.legend(fontsize=(40) )
-ax.set_title(" Fast Time Distance", fontsize=28, fontweight="bold")
+ax.set_title(" DTW Distance", fontsize=28, fontweight="bold")
 
 
 # COMMAND ----------
@@ -413,4 +413,165 @@ T = pd.DataFrame(DTWLIST)
 T.columns=['NFT','DTW_Distance']
 T = T.sort_values('DTW_Distance')
 T                                           
+
+
+# COMMAND ----------
+
+tmp = T.copy()
+tmp = tmp[:11]
+tmp['Top10'] = ['', 1,2,3,4,5,6,7,8,9,10  ]
+tmp.set_index('Top10')
+
+
+# COMMAND ----------
+
+X = df_dict.get('Art Blocks')['mean']
+XV=df_dict.get('Art Blocks')['mean'].values
+XX = [(X.index[i], X[i]) for i in np.arange(0, len(X))]
+
+DTWLIST=[]
+for i,v in df_dict.items():
+#     print(i,v)
+    Y = df_dict.get(i)['mean']
+    
+   
+    # FastDTW 사용한 경로 및 DTW 거리 계산
+    dtw_distance, warp_path = fastdtw(X, Y, dist=euclidean)
+   
+    DTWLIST.append( (i, dtw_distance )  )
+
+
+DTWLIST    
+
+# COMMAND ----------
+
+T = pd.DataFrame(DTWLIST)
+T.columns=['NFT','DTW_Distance']
+T = T.sort_values('DTW_Distance')
+T                                           
+
+
+# COMMAND ----------
+
+tmp = T.copy()
+tmp = tmp[:11]
+tmp.set_index()
+
+# COMMAND ----------
+
+# 데이터가 너무 깨져서 시각화 하기힘듦 => 설명은 8월~ 기준 으로 시각화하고 DATA 값은 전체 날짜로 진행하도록하자.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 10개만
+
+# COMMAND ----------
+
+X = df_dict.get('Art Blocks')['mean']
+XV=df_dict.get('Art Blocks')['mean'].values
+XX = [(X.index[i], X[i]) for i in np.arange(0, len(X))]
+
+DTWLIST=[]
+for i,v in df_dict.items():
+#     print(i,v)
+    Y = df_dict.get(i)['mean']
+    
+   
+    # FastDTW 사용한 경로 및 DTW 거리 계산
+    dtw_distance, warp_path = fastdtw(X, Y, dist=euclidean)
+   
+    DTWLIST.append( (i, dtw_distance )  )
+
+
+DTWLIST    
+
+# COMMAND ----------
+
+T = pd.DataFrame(DTWLIST)
+T.columns=['NFT','DTW_Distance']
+T = T.sort_values('DTW_Distance')
+T[:11]                                           
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC # PPT 제출용 날짜 범위 수정 데이터 시각화
+
+# COMMAND ----------
+
+X = df_dict.get('CryptoKitties')['mean'].head(30)
+Y= df_dict.get('Art Blocks')['mean'].head(30)
+
+XV=df_dict.get('CryptoKitties')['mean'].head(30).values
+YV=df_dict.get('Art Blocks')['mean'].head(30).values
+
+
+# COMMAND ----------
+
+fig, ax = plt.subplots(figsize=(30, 10))
+
+# Remove the border and axes ticks
+# fig.patch.set_visible(False)
+# ax.axis('off')
+
+XX = [(X.index[i], X[i]) for i in np.arange(0, len(X))]
+YY = [(Y.index[j], Y[j]) for j in np.arange(0, len(Y))]
+
+
+for i, j in zip(XX, YY):
+    ax.plot(   [ i[0], j[0]], [i[1], j[1]], '--k', linewidth=1)
+# ax.plot(   )
+ax.plot(X, '-bo', label='CryptoKitties', linewidth=3, markersize=4, markerfacecolor='lightcoral', markeredgecolor='lightcoral')
+plt.legend( fontsize=(40) )
+
+ax.plot(Y, '-ro', label='Art Blocks', linewidth=3, markersize=4, markerfacecolor='skyblue', markeredgecolor='skyblue')
+plt.legend(fontsize=(40) )
+
+
+ax.set_title("Euclidean Distance", fontsize=28, fontweight="bold")
+
+# COMMAND ----------
+
+dtw_distance, warp_path = fastdtw(X, Y, dist=euclidean)
+print("DTW distance: ", dtw_distance)
+print("Warp path: ", warp_path)
+
+# COMMAND ----------
+
+cost_matrix = compute_accumulated_cost_matrix(X, Y)
+fig, ax = plt.subplots(figsize=(120, 120))
+ax = sns.heatmap(cost_matrix, annot=True, square=True, linewidths=10, cmap="YlGnBu", ax=ax, annot_kws={'size':30})
+ax.invert_yaxis()
+
+# Get the warp path in x and y directions
+path_x = [p[0] for p in warp_path]
+path_y = [p[1] for p in warp_path]
+
+# Align the path from the center of each cell
+path_xx = [x+0.5 for x in path_x]
+path_yy = [y+0.5 for y in path_y]
+
+ax.plot(path_xx, path_yy, color='blue', linewidth=30, alpha=0.2)
+
+# COMMAND ----------
+
+
+fig, ax = plt.subplots(figsize=(30, 10), )
+
+# Remove the border and axes ticks
+# ax.se
+ax.axis('off')
+# plt.setp(ax.get_xticklabels(), fo")ntsize=12, fontweight="bold", 
+#          horizontalalignment="left
+for [map_x, map_y] in warp_path:
+    ax.plot( [map_x, map_y], [X[map_x], Y[map_y]], '--k', linewidth=0.7)
+    
+ax.plot(XV, '-bo', label='CryptoKitties', linewidth=3, markersize=4, markerfacecolor='lightcoral', markeredgecolor='lightcoral')
+plt.legend(fontsize=(40) )
+ax.plot(YV, '-ro', label='Art Blocks', linewidth=3, markersize=4, markerfacecolor='skyblue', markeredgecolor='skyblue')
+plt.legend(fontsize=(40) )
+ax.set_title(" Fast Time Distance", fontsize=28, fontweight="bold")
 
