@@ -461,7 +461,7 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 함수 생성
+# MAGIC ### [함수] 교차상관계수 차트 생성기
 
 # COMMAND ----------
 
@@ -651,8 +651,11 @@ ccfcc_plot1(data)
 #  시차상관계수 계산함수
 def TLCC(X, Y, lag):
     result=[]
+    print(lag)
     for i in range(lag):
+        print(i)
         result.append(X.corr(Y.shift(i)))
+        print(result)
     return np.round(result, 4)
 #         print(i, np.round(result[i], 4))
 #     print(f'시차상관계수가 가장 높은 lag = <{np.argmax(result)}>')
@@ -897,19 +900,114 @@ data[avgusd_col_list][-30:].median()
 # MAGIC     - 종합 : 전체 평균가와 가장 높은 지연인 54를 기준으로 참고할 수 있을까? 아니면 매우 긴 지연도 유의미 하는걸까?(재귀적 영향관계로?) -
 # MAGIC ---
 # MAGIC ### 의문점2 : 선행/후행의 결과가 같거나 다를 경우 해석은 어떻게??
-# MAGIC ####  - a-b 동행 and b-a 동행 : 거의 특징이 동일하다고 봐도 될듯
+# MAGIC ####  - 상호 동행 : 거의 특징이 동일하다고 봐도 될듯
 # MAGIC     - art<->collectible(0)
-# MAGIC ####  - a-b 동행or지연 and b-a 지연or지연 : a는 b에 바로 반응이 갈 정도로 영향이 크지만, b는 상대적으로 낮다?
+# MAGIC ####  - 편 지연(편동행 생략) : a는 b에 바로 반응이 갈 정도로 영향이 크지만, b는 상대적으로 낮다?
 # MAGIC     - metaverse -> art/collectible(99,55) -> game(32,58), meta->game(14),  collectible/metaverse->all(54), 3) all->art/game(22,44)
 # MAGIC       - 인과에 따라서 메타버스가 game에 영향을 주는 거라면 143이 유의미할 수도 있을 듯
 # MAGIC       - all이 art/game에 재귀적으로 영향을 주는 거라면 all피처가 유의미할 수도 있을 듯
-# MAGIC ####  - a-b 지연 and b-a 지연 : 즉시 반응을 줄정도의 영향력은 없는, 상대적으로 서로에게 낮은 영향력을 가졌나?
+# MAGIC ####  - 상호 지연 : 즉시 반응을 줄정도의 영향력은 없는, 상대적으로 서로에게 낮은 영향력을 가졌나?
 # MAGIC     - 없음, 이 케이스가 합리적인 명제인지도 모르겠음 헷갈림
 # MAGIC ---
 # MAGIC 위 의문을 해소하기 위한 인과검정이 필요하다.
-# MAGIC 인과검정을 위핸 대표 지연케이스를 셀렉션 하자.  
-# MAGIC ### - **케이스 셀렉션?? : 대표 지연케이스로 collectible-game 59을 공적분 검증해보자**
-# MAGIC   - 아니 셀렉션이 의미가 있는지 모르겠네 생각해보니까, 다변량이 있어야 하는것 아님? 뭥미?
+# MAGIC ---
+# MAGIC #### 케이스 셀렉션
+# MAGIC - 공적분 검정용 케이스 : 일단..대표 지연케이스로 collectible->game(59)를 공적분 검증해보자
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### 대표 케이스 시차상관계수 비교 테이블
+
+# COMMAND ----------
+
+avgusd_col_list
+
+# COMMAND ----------
+
+# 월 중앙값 집계 데이터
+dataM_median = data.resample('M').median()
+dataM_median.head()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [함수] 시차상관계수 차트 생성기
+
+# COMMAND ----------
+
+#  시차상관계수 계산함수
+def TLCC_comparison(X, Y, start_lag, end_lag):
+    result=[]
+    laglist = []
+    for i in range(start_lag, end_lag+1):
+        result.append(X.corr(Y.shift(i)))
+        laglist.append(i)
+    return laglist, np.round(result, 4)
+
+# COMMAND ----------
+
+# 차트 함수
+def TLCC_comparison_plot1(data, X, Y, startlag, endlag): # 데이터, 기준변수, 비교변수, startlag, endlag
+    Ylist = Y.copy()
+    Ylist.remove(X)  # 입력한 변수에서 삭제되기때문에 사전 카피필요
+    Yindex_list = [X, *Ylist]
+    tlcc_list = []
+    lag_var_list= []
+    lvar_tlcc_list=[]
+    sd_list = []
+    rsd_list = []
+    
+    # y별 lag, tlcc값 받아오기
+    for i in range(len(Yindex_list)): 
+        ydata = data[Yindex_list[i]]
+        lag_list,  result = TLCC_comparison(data[X], ydata, startlag, endlag) 
+        tlcc_list.append(result)
+        sd_list.append(numpy.std(ydata))   # =stdev(범위)
+        rsd_list.append(numpy.std(ydata)/numpy.mean(ydata)*100)  # stdev(범위)/average(범위)*100
+
+#     # lag별 tlcc값 바인딩 변수 만들기(=칼럼)
+#     for i in range(len(lag_list)):
+#         lag_var_list.append([]) #  lag별 tlcc값을 바인딩할 그릇 생성
+#         for j in range(len(tlcc_list)):
+#              lag_var_list[i].append(tlcc_list[j][i])
+
+    # 데이터프레임용 데이터 만들기
+    temp = tlcc_list.copy()
+    dfdata = list(zip(Yindex_list, sd_list, rsd_list, *list(zip(*temp)))) # temp..array를 zip할수 있도록 풀어줘야함..
+    
+    # 데이터프레임용 칼럼명 리스트 만들기
+    column_list = ['Y변수', '표준편차', '상대표준편차', *lag_list]  
+
+    result_df = pd.DataFrame(data=dfdata, columns= column_list,)
+#     result_df = pd.DataFrame(data=dfdata, index = Yindex_list, columns= column_list)
+#     result_df.index.name = f"X={X}" #  인덱스 이름 변경
+
+    return result_df
+
+# COMMAND ----------
+
+# 월 중앙값 기준
+print(f"<<<X기준 Y의 변동폭 및 시차상관계수 테이블>>>")
+result_df = TLCC_comparison_plot1(dataM_median, 'collectible_average_usd', avgusd_col_list, -6, 6)
+result_df
+
+# COMMAND ----------
+
+## 데이터프레임 스타일
+# result_df.style.set_precision(2)
+pd.set_option('display.precision', 2) # 소수점 글로벌 설정
+result_df.style.background_gradient(cmap='Blues').set_caption(f"<b><<<'X(0)기준 Y의 변동폭 및 시차상관계수'>>><b>")
+# df.style.applymap(lambda i: 'background-color: red' if i > 3 else '')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [결론] 월 중앙값 기준 시차상관분석(collectible_avgusd 기준)
+# MAGIC - utility는 상관관계 없음
+# MAGIC - metaverse는 -lag가 관계가 있고 +lag는 관계가 떨어지는 것으로 보아, meta -> collec 관계로 보임
+# MAGIC - art, game 모두 +lag관계가 높은 것으로 보아, collec->meta관계로 보임, art는 6개월차에 관계가 높아짐
+# MAGIC - 표준편차/ 상대표준편차 값이 너무 커서 판단이 어렵다. 평균을 함께 봐야하나?
 
 # COMMAND ----------
 
@@ -963,8 +1061,8 @@ result_df_filtered
 
 # COMMAND ----------
 
-# 높은 상관관계만 추려보자(0.5 이상) 총 90개행
-good = result_df_filtered[result_df_filtered['TLCC_max'] >= 0.5]
+# 높은 상관관계만 추려보자(0.75 이상) 총 93개행
+good = result_df_filtered[result_df_filtered['TLCC_max'] >= 0.75]
 print(len(good))
 good
 # 동행성-동행
@@ -982,52 +1080,82 @@ good
 
 # COMMAND ----------
 
-# 보통/낮은 상관관계만 추려보자(0.5 이하) 없음
-bad = result_df_filtered[result_df_filtered['TLCC_max'] <= 0.5]
+# 보통/낮은 상관관계만 추려보자(0.75 이하) 없음 7개
+bad = result_df_filtered[result_df_filtered['TLCC_max'] <= 0.75]
 print(len(bad))
 bad
-
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC #### [실험 결과] all카테고리 피처별 시차상관분석 
-# MAGIC - 대부분 카테고리의 시차상관계수가 가장 높을 떄는 lag=0 즉, 동행성을 보인다.
-# MAGIC - 시차지연되는 경우는,"avgusd"가 후행일때 71~100의 지연을 보인다.
-# MAGIC - 시차상관성이 낮은 경우는 primary sales가 상대적으로 낮았다. 0.6~0.8  선행/후행 모두 낮음
+# MAGIC 
+# MAGIC ### 상관관계가 낮은 케이스
+# MAGIC ####  - 대체로 높다. 1차매출이 리드하는 경우가 상대적으로 0.6~7로 낮은편
 # MAGIC ---
-# MAGIC - **의문점 : 왜 극단적으로 동행성(0) vs 2~3달지연(66-100)으로 나뉠까? 너무 늦는데.. 일정기간이 넘으면 무의미한것 아닐까..?**
-# MAGIC   - 평균가가 선행일 때, 동행/지연케이스의 인과 해석이 안된다..구매자 반응이 너무 느리다. 인과검정이 필요하다..
-# MAGIC     - 지연 케이스 : 구매자 71일, 판매수 66일, 1차시장 66일, 2차시장 65일
-# MAGIC     - 동행 케이스 : 전체지갑, 판매자, 1차시장판매가, 2차시장판매가
-# MAGIC   - 평균가가 후행일 때, 1개카테고리(1차시장판매가치)만 동행하고 나머지 8개 카테고리가 100일 선행한다.
-# MAGIC - **케이스 셀렉션 : 일단..대표 지연케이스로 avgusd-buyer 71을 공적분 검증해보자(avg_usd를 예측했으니까..)**
+# MAGIC ### 상관관계가 높은 케이스
+# MAGIC - 항목이 많아 분석이 어렵다. 구체적인 과제에 맞춰 분석하는게 좋을 듯
+# MAGIC - **평균가 기준) 총지갑수/총판매수/1차판매수/2차판매수/2차매출/구매자수/판매자수는 평균가와 대체로 2~3달의 상호지연관계이고, 총매출과 평균가 그리고 1차매출은 약 3달의 편지연관계를 갖는다.**
+# MAGIC - **특이사항) 시차지연의 경우, 위 평균가 피처별분석와 동일하거나 상대적으로 높은 편이고(33~143), "상호지연관계" 많다.**
+# MAGIC - **의문점 ) "평균가와 구매자수의 지연관계가 2~3달이면 생각보다 너무 길다"**  
 # MAGIC 
+# MAGIC #### 상호 동행
+# MAGIC - 총지갑수<->총판매수/1차판매수/2차판매수/2차매출/구매자수/판매자수,  총판매수<->1차판매수/2차판매수/2차매출/구매자수/판매자수, 
+# MAGIC - 1차판매수<->2차판매수/2차매출/구매자수, 총매출<->2차매출, 2차판매수<->구매자수/판매자수, 2차매출<->구매자수, 구매자수<->판매자수 
 # MAGIC 
+# MAGIC #### 편 지연(편동행 생략)
+# MAGIC - 총지갑수->총매출(124), 총판매수->1차매출(132)/총매출(123), 평균가->1차매출(98), 총매출->평균가(98), 1차판매수->1차매출(119)/총매출(117)/판매자수(143)
+# MAGIC - 총매출->1차매출(98), 2차매출->1차매출(118), 2차판매수->총매출(127), 구매자수->총매출(123), 판매자수->총매출(130), 2차판매수->2차매출(125), 판매자수->2차매출(127)
+# MAGIC 
+# MAGIC #### 상호 지연
+# MAGIC - 총지갑수<->평균가(100,70)/1차매출(132,56), 총판매수<->평균가(100,66), 평균가<->1차판매수(66,100)/2차판매수(65, 100)/2차매출(33,98)/구매자수(71,100)/판매자수(67,100)
+# MAGIC - 1차매출<->2차판매수(56,134), 1차매출<->구매자수(56,132),판매자수(56,135)
 # MAGIC 
 # MAGIC ---
-# MAGIC 분석정리해야함
-# MAGIC # 동행성-동행
-# MAGIC # 총지갑수<->총판매수/1차판매수/2차판매수/2차매출/구매자수/판매자수,  총판매수<->1차판매수/2차판매수/2차매출/구매자수/판매자수, 1차판매수<->2차판매수/2차매출/구매자수, 총매출<->2차매출
-# MAGIC # 2차판매수<->구매자수/판매자수, 2차매출<->구매자수, 구매자수<->판매자수
-# MAGIC 
-# MAGIC # 동행-지연
-# MAGIC # 총지갑수->총매출(124), 총판매수->1차매출(132)/총매출(123), 평균가->1차매출(98), 총매출->평균가(98), 1차판매수->1차매출(119)/총매출(117)/판매자수(143), 총매출->1차매출(98), 2차매출->1차매출(118)
-# MAGIC # 2차판매수->총매출(127), 구매자수->총매출(123), 판매자수->총매출(130), 2차판매수->2차매출(125)
-# MAGIC # 판매자수->2차매출(127)
-# MAGIC 
-# MAGIC # 지연-지연
-# MAGIC #  총지갑수<->평평균가(100<->70),1차매출(132<->56)  , 총판매수<->평균가(100,66), 평균가<->1차판매수(66,100),2차판매수(65, 100),2차매출(33,98),구매자수(71,100),판매자수(67,100),  1차매출<->2차판매수(56,134)
-# MAGIC # 1차매출<->구매자수(56,132),판매자수(56,135)
+# MAGIC #### 케이스 셀렉션
+# MAGIC - 공적분 검정용 케이스 : 일단..대표 지연케이스로 avgusd->buyer(71)을 공적분 검증해보자(avg_usd를 예측했으니까..)**
 
 # COMMAND ----------
 
-의문점 : 왜 극단적으로 동행성(0) vs 1~5달지연(34-149)으로 나뉠까?
-collect가 선행일 때, 지연 케이스 : game 59일
-game이 선행일 때, 지연케이스 : 없음
-game이 후행일 때, utility외 모든 카테고리가 선행한다.
-의문점 : 대부분의 케이스가 모두 즉각 반응(동행)하는데 왜, 게임 카테고리만 1~5달 지연을 보일까?
-케이스 셀렉션 : 대표 지연케이스로 collectible-game 59을 공적분 검증해보자
+# MAGIC %md
+# MAGIC #### 대표 케이스 시차상관계수 비교 테이블
+
+# COMMAND ----------
+
+all_col_list
+
+# COMMAND ----------
+
+# 월 중앙값 집계 데이터
+dataM_median.head()
+
+# COMMAND ----------
+
+# 월 중앙값 기준
+print(f"<<<X기준 Y의 변동폭 및 시차상관계수 테이블>>>")
+result_df = TLCC_comparison_plot1(dataM_median, 'all_average_usd', all_col_list, -6, 6)
+result_df
+
+# COMMAND ----------
+
+## 데이터프레임 스타일
+# result_df.style.set_precision(2) #안되네..
+pd.set_option('display.precision', 2) # 소수점 글로벌 설정
+# pd.set_option("styler.format.thousands", ",")#안되네..
+# result_df.style.format(thousands=",") # 안됨
+result_df.style.background_gradient(cmap='Blues').set_caption(f"<b><<<'X(0)기준 Y의 변동폭 및 시차상관계수'>>><b>")
+
+# df.style.applymap(lambda i: 'background-color: red' if i > 3 else '')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [결론] 월 중앙값 기준 시차상관분석(all_avgusd 기준)
+# MAGIC - 자기상관 : 한달 전후만 있음
+# MAGIC - 상호지연관계 : 지갑수, 판매수, 1차판매수, 2차판매수, 구매자수, 판매자수
+# MAGIC - 상호동행관계 : 1차매출
+# MAGIC - 편지연관계 : 총매출과 2차매출이 평균가에 영향을 줌
+# MAGIC - 표준편차/ 상대표준편차 값이 너무 커서 판단이 어렵다. 평균을 함께 봐야하나?
 
 # COMMAND ----------
 
