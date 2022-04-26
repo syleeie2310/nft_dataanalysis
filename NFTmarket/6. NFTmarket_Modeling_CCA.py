@@ -5,7 +5,7 @@ import pandas as pd
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 정제 데이터 로드
+# MAGIC # 클린 데이터 로드
 
 # COMMAND ----------
 
@@ -21,40 +21,16 @@ data.tail()
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC # 시계열 특성 분석
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 1. 정상성 판단
-# MAGIC ### 자기 상관 함수(ACF)
-# MAGIC - 잔차들이 시간의 흐름에서 독립적인지를 확인하기 위함(acf에 0에 가까우면 독립적)
-# MAGIC - 시차가 클수록 0에 가까워지며, 정상 시계열은 상대적으로 빠르게 0에 수렴한다. 
-# MAGIC - ACF는 보통 시계열에서 과거의 종속변수(Y)와의 비교를 통해 계절성 판단을 주로 한다.
-# MAGIC - 보통 시계열 분석에서 많이 사용이 되며, 현재의 Y값과 과거의 Y값의 상관성을 비교한다. 왜냐하면, 각각의 Y값이 독립적이어야 결과 분석이 더 잘되기 때문이다.(Y를 정상화시키면 분석이 더 잘된다는 개념과 같다.) 
-# MAGIC 
-# MAGIC ### 편자기 상관 함수(PACF)
-# MAGIC - 시차에 따른 일련의 편자기상관이며, 시차가 다른 두 시계열 데이터간의 순수한 상호 연관성
-# MAGIC 
-# MAGIC ### 그래프 해석
-# MAGIC - AR(p) 특성: ACF는 천천히 감소하고, PACF는 처음 시차를 제외하고 급격히 감소
-# MAGIC - MA(q) 특성: ACF가 급격히 감소하고, ACF는 천천히 감소
-# MAGIC - 각각 급격히 감소하는 시차를 모수로 사용한다. AR -> PACF,    MA -> ACF
-# MAGIC <img src="https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FpcuWC%2Fbtq5CACTt5C%2FX3UFPPkwhZpjV59WygsV30%2Fimg.png">
-
-# COMMAND ----------
-
 from statsmodels.tsa.ar_model import AR
 from statsmodels.tsa.arima_model import ARIMA
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf, acf, pacf
-import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sb
 from warnings import filterwarnings
 filterwarnings("ignore")
 plt.style.use("ggplot")
+pd.options.display.float_format = '{:.2f}'.format
 
 # COMMAND ----------
 
@@ -160,45 +136,6 @@ def autoCorrelationF(data, feature):
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### raw 데이터 시각화
-# MAGIC - 평균이 일정하지 않음, 대체로 MA특징을 가짐 (PACF), 차분 필요
-# MAGIC - 2개의 경향으로 나눠짐
-# MAGIC   - all, collectible, art, metaverse 
-# MAGIC   - defi, game, utility
-
-# COMMAND ----------
-
-autoCorrelationF(data, 'average_usd') #raw df, feature
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### log변환 데이터 시각화
-# MAGIC - raw데이터와 유사함
-
-# COMMAND ----------
-
-autoCorrelationF(np.log1p(data), 'average_usd') #raw df, feature
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### 2) 차분
-# MAGIC - 대체로 정상성을 보여 1차로 충분해보임, 그러나 특정 변동폭이 너무 커서 전체적인 패턴을 여전히 보기 어려움
-# MAGIC - 큰 변동폭이 있음 미 all, collectible, art, metaverse 
-# MAGIC - all은 21.11.15 에 큰 변동폭
-# MAGIC - collectible, art, metaverse 가 22.1.8에 큰 변동이 있음
-# MAGIC - defi, game, utility는 모두 다름
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### raw데이터+차분
-# MAGIC - 차분을 통해 정상성을 갖는다.
-
-# COMMAND ----------
-
 import plotly.express as px
 from plotly.subplots import make_subplots
 
@@ -222,29 +159,6 @@ def diff_plot(data, feature, plot):
             fig.show()
     elif plot == 'acf':
         autoCorrelationF(diff_data, feature)
-
-# COMMAND ----------
-
-diff_plot(data, 'average_usd', 'line') #raw df, feature
-
-# COMMAND ----------
-
-diff_plot(data, 'average_usd', 'acf') #raw df, feature
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### log변환+차분
-# MAGIC - 여전히 갭이 커서 보기 어렵다. 적절한지 모르겠다.
-
-# COMMAND ----------
-
-diff_plot(np.log1p(data), 'average_usd', 'line') #raw df, feature
-
-# COMMAND ----------
-
-# 첫번째는 자기자신과의 상관관계이므로 1이 나올수밖에 없다.
-diff_plot(np.log1p(data), 'average_usd', 'acf') #raw df, feature
 
 # COMMAND ----------
 
@@ -332,367 +246,8 @@ def kpss_test(data, feature):
 
 # COMMAND ----------
 
-# KPSS 검정
-from statsmodels.tsa.stattools import kpss
-
-def kpss_test1(data):
-#     print("Results of KPSS Test")
-    result = kpss(data, regression="c", nlags="auto")
-    kpss_output = pd.Series(
-        result[0:3], index=["KPSS Statistic", "p-value", "Lags Used"] )
-#     for key, value in result[3].items():
-#         kpss_output["Critical Value (%s)" % key] = value
-#     print(kpss_output[:1])   
-    
-#     print('KPSS Statistics: %f' % kpss_output[0])
-#     print('p-value: %f' % kpss_output[1])
-    return kpss_output
-
-
-# COMMAND ----------
-
-# MAGIC %md 
-# MAGIC #### [함수] 단위근검정 실행기
-
-# COMMAND ----------
-
-pd.options.display.float_format = '{: .4f}'.format
-
-def URT(data, feature) :
-    # 피처 분류기 호출
-    col_list = feature_classifier(data, feature)
-    
-    adf_stats = []
-    adf_Pval = []
-    kpss_stats = []
-    kpss_Pval = []
-    total_list = []
-    
-    for col in col_list:
-#         print(f'<<<<{col}>>>>')
-        col_data = data[col]
-        
-        # ADF검정기 호출
-        adf_result = adf_test1(col_data) 
-        adf_stats.append(adf_result[0])
-        adf_Pval.append(adf_result[1])
-        
-        # KPSS검정기 호출
-        kpss_result = kpss_test1(col_data)
-        kpss_stats.append(kpss_result[0])
-        kpss_Pval.append(kpss_result[1])
-        
-        # 종합
-        if adf_result[1] <= 0.05 and kpss_result[1] >= 0.05:
-            total_list.append('ALL Pass')
-        elif adf_result[1] <= 0.05 or kpss_result[1] >= 0.05:
-            total_list.append('One Pass')
-        else :
-            total_list.append('fail')
-        
-    # 테이블 생성
-#     col_list.append('total')
-    result_df = pd.DataFrame(list(zip(adf_stats, adf_Pval, kpss_stats, kpss_Pval, total_list)), index = col_list, columns=['adf_stats', 'adf_Pval', 'KPSS_stats', 'KPSS_Pval', 'total'])
-    
-#     # adf stats가 낮은 순으로 정렬
-#     result_df.sort_values(sort, inplace=True)
-    
-    return result_df             
-
-# COMMAND ----------
-
 # MAGIC %md
-# MAGIC #### Raw+차분 검정(ADF, KPSS)
-
-# COMMAND ----------
-
-# 전체 기간 : art제외하고 모두 정상성을 가짐
-URT(data.diff(periods=1).dropna(), 'average_usd')
-
-# COMMAND ----------
-
-# 2018년 이후 :
-URT(data['2018':].diff(periods=1).dropna(), 'average_usd')
-
-# COMMAND ----------
-
-# 2018년 ~ 2021년 : all, defi, utility만 통과
-URT(data['2018':'2021'].diff(periods=1).dropna(), 'average_usd')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ####  Log+차분 검정(ADF, KPSS)
-
-# COMMAND ----------
-
-# 전체 기간 : utility는 조금 약함, 
-URT(np.log1p(data).diff(periods=1).dropna(), 'average_usd')
-
-# COMMAND ----------
-
-# 전체기간 : art와 defi만 모두 통과
-URT(np.log1p(data['2018':]).diff(periods=1).dropna(), 'average_usd')
-
-# COMMAND ----------
-
-# 2018~2021 : art와 defi만 모두 통과
-URT(np.log1p(data['2018':'2021']).diff(periods=1).dropna(), 'average_usd')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### 4) [종합요약] "average_usd"피처의 카테고리별 정상성 분석
-# MAGIC 
-# MAGIC - 차분은 1회면 충분하다. MA값은 raw는 1, log는 0으로 확인됨, (P=?, D=1, Q=1)
-# MAGIC   - acf/pacf 그래프에서  p와 q값을 선정하는 것은 권장하지 않음, 정확하지 않고 해석하기 어려움
-# MAGIC   - 전체 행 길이의 log변환 값을 최대치로, ar을 실험하는 가이드가 있으나 정확하지 않음, 값이 변하지 않는지 더 체크해봐야함
-# MAGIC - 통계적 가설 검정
-# MAGIC   - 카테고리별, raw/log별, 기간별 결과가 모두 달라서 혼란스럽다..
-# MAGIC   - raw+차분와 log+차분, 중에 무엇을 골라야하나?
-# MAGIC   - 카테고리는 어떻게 골라야 하나?
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 2. 시계열 분해
-# MAGIC - 시계열 성분 : 추세, 계절/순환, 불규칙(나머지)
-# MAGIC - statsmodels.tsa.seasonal.STL : LOESS를 사용한 계절 추세 분해
-# MAGIC - statsmodels.tsa.seasonal.seasonal_decompose : 가산 또는 곱셈 모델과 같은 선형 모델
-# MAGIC   - (1) 시도표 (time series plot)를 보고 시계열의 주기적 반복/계절성이 있는지, 가법 모형(additive model, y = t + s + r)과 승법 모형(multiplicative model, y = t * s * r) 중 무엇이 더 적합할지 판단을 합니다. 
-# MAGIC 
-# MAGIC  
-# MAGIC 
-# MAGIC <가법 모형을 가정 시>
-# MAGIC 
-# MAGIC   - (2) 시계열 자료에서 추세(trend)를 뽑아내기 위해서 중심 이동 평균(centered moving average)을 이용합니다. 
-# MAGIC 
-# MAGIC  
-# MAGIC 
-# MAGIC   - (3) 원 자료에서 추세 분해값을 빼줍니다(detrend). 그러면 계절 요인과 불규칙 요인만 남게 됩니다. 
-# MAGIC 
-# MAGIC  
-# MAGIC 
-# MAGIC   - (4) 다음에 계절 주기 (seasonal period) 로 detrend 이후 남은 값의 합을 나누어주면 계절 평균(average seasonality)을 구할 수 있습니다. (예: 01월 계절 평균 = (2020-01 + 2021-01 + 2022-01 + 2023-01)/4, 02월 계절 평균 = (2020-02 + 2021-02 + 2022-02 + 2023-02)/4). 
-# MAGIC 
-# MAGIC  
-# MAGIC 
-# MAGIC   - (5) 원래의 값에서 추세와 계절성 분해값을 빼주면 불규칙 요인(random, irregular factor)이 남게 됩니다. 
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### [함수] 시각화
-
-# COMMAND ----------
-
-from plotly.subplots import make_subplots
-from statsmodels.tsa.seasonal import DecomposeResult, seasonal_decompose
-
-def plot_seasonal_decompose(result:DecomposeResult, dates:pd.Series=None, title:str="Seasonal Decomposition"):
-    x_values = dates if dates is not None else np.arange(len(result.observed))
-    return (
-        make_subplots(
-            rows=4,
-            cols=1,
-            subplot_titles=["Observed", "Trend", "Seasonal", "Residuals"],
-        )
-        .add_trace(
-            go.Scatter(x=x_values, y=result.observed, mode="lines", name='Observed'),
-            row=1,
-            col=1,
-        )
-        .add_trace(
-            go.Scatter(x=x_values, y=result.trend, mode="lines", name='Trend'),
-            row=2,
-            col=1,
-        )
-        .add_trace(
-            go.Scatter(x=x_values, y=result.seasonal, mode="lines", name='Seasonal'),
-            row=3,
-            col=1,
-        )
-        .add_trace(
-            go.Scatter(x=x_values, y=result.resid, mode="lines", name='Residual'),
-            row=4,
-            col=1,
-        )
-        .update_layout(
-            height=900, title=f'<b>{title}</b>', margin={'t':100}, title_x=0.5, showlegend=False
-        )
-    )
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 실험1 (미차분)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ##### raw 데이터
-
-# COMMAND ----------
-
-import pandas as pd
-from statsmodels.tsa.seasonal import seasonal_decompose
-df = data['collectible_average_usd']
-decomposition = seasonal_decompose(df, model='additive', period=365) 
-# 일자데이터... 기간 어케함 ㅜ, 자동 달력변동이 안되고 덧셈분해만 가능
-fig = plot_seasonal_decompose(decomposition, dates=df.index)
-fig.show()
-
-# COMMAND ----------
-
-import pandas as pd
-from statsmodels.tsa.seasonal import seasonal_decompose
-df = data['game_average_usd']
-decomposition = seasonal_decompose(df, model='additive', period=365) 
-# 일자데이터... 기간 어케함 ㅜ, 자동 달력변동이 안되고 덧셈분해만 가능
-fig = plot_seasonal_decompose(decomposition, dates=df.index)
-fig.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ##### log변환 데이터
-
-# COMMAND ----------
-
-df = np.log1p(data['collectible_average_usd'])
-decomposition = seasonal_decompose(df, model='additive', period=365) # 일자데이터...
-fig = plot_seasonal_decompose(decomposition, dates=df.index)
-fig.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ##### 집계 데이터
-
-# COMMAND ----------
-
-from statsmodels.tsa.seasonal import seasonal_decompose
-dataM_median = data.resample('M').median() # 월 중앙값 데이터 생성
-df = dataM_median['collectible_average_usd']
-
-decomposition = seasonal_decompose(df, model='additive', period=12) # 일자데이터...
-fig = plot_seasonal_decompose(decomposition, dates=df.index)
-fig.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 실험2 (1차분)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ##### raw+차분
-
-# COMMAND ----------
-
-import pandas as pd
-from statsmodels.tsa.seasonal import seasonal_decompose
-df = data['collectible_average_usd'].diff(periods=1).dropna()
-decomposition = seasonal_decompose(df, model='additive', period=365) 
-fig = plot_seasonal_decompose(decomposition, dates=df.index)
-fig.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ##### log+차분
-
-# COMMAND ----------
-
-# 차분먼저하고 로그변환하면 오류남..
-df = np.log1p(data['collectible_average_usd']).diff(periods=1).dropna()
-decomposition = seasonal_decompose(df, model='additive', period=365) 
-fig = plot_seasonal_decompose(decomposition, dates=df.index)
-fig.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ##### 집계+차분
-
-# COMMAND ----------
-
-# 차분-> 집계 와, 집계->차분의 그래프가 다름, 무엇이 정확할까?
-from statsmodels.tsa.seasonal import seasonal_decompose
-dataM_median = (data.resample('M').median()).diff(periods=1).dropna() 
-# dataM_median = (data.diff(periods=1).dropna()).resample('M').median() 
-df = dataM_median['collectible_average_usd']
-
-decomposition = seasonal_decompose(df, model='additive', period=12) # 일자데이터...
-fig = plot_seasonal_decompose(decomposition, dates=df.index)
-fig.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### [종합요약] : raw, log, 집계, 차분까지 모두 계절성을 보이고 불규칙에서도 패턴이 있다. SARIMA를 써보자.  다만 21년도 이후부터는 계절성이 없어 예측 우려
-# MAGIC - collectible_average_usd는 계절성이 있다.  불규칙에서도 패턴을 보인다. -> 예측이 가능할 것 같지만
-# MAGIC - [실험1] 20년까지 계절성와 불규칙(반복) 특징이 있음. 21년부터 업어 예측될지 의문, -> 지수평활을 해야할 것 같은데.. 
-# MAGIC   - raw추세 : 18년 하락, 21년 급상승
-# MAGIC   - raw계절성 : 1년 주기로 7월에급상승하고 이후 하락세
-# MAGIC   - raw불규칙 : 20년 중반까지 1년간 상승하다 8월 하락 특징이 있었으나,  21년부터 하락 지속
-# MAGIC   - log는 계절성이 18년 1월부터 뜀, 로그변환으로 관측값과 왜곡이 생겨 부적합
-# MAGIC - [실험2] 해석 어려움, 유의미한지?
-# MAGIC    -차분+집계는 실험1과 유사함 
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Seasonal adjustment
-# MAGIC - 계절성이 있긴하지만, 추세에 크게 영향을 주진 못함, 영향력이 작은 듯함, 트랜드 영향이 더 큰 데이터임. 최근 트랜드에 대한 가중치 고려가 필요함(ex 지수평활법)
-# MAGIC - 계절성으로 조정된 데이터, (원데이터에 계절성을 뺌)
-# MAGIC - 계절성으로 조정된 시계열에는 추세-주기 성분도 있고 나머지 성분도 있습니다.
-# MAGIC - 그래서, 시계열이 “매끄럽지” 않고, “하락세”나 “상승세”라는 표현이 오해를 불러 일으킬 수 있습니다.
-# MAGIC - 시계열에서 전환점을 살펴보는 것과 어떤 방향으로의 변화를 해석하려는 것이 목적이라면, 계절성으로 조정된 데이터보다는 추세-주기 성분을 사용하는 것이 더 낫습니다.
-
-# COMMAND ----------
-
-# 미차분 raw 데이터 계절성 조정
-df = data['collectible_average_usd']
-decomposition = seasonal_decompose(df, model='additive', period=365) 
-# decomposition_trend = decomposition.trend
-decomposition_seasonal = decomposition.seasonal
-df_adjusted = (df - decomposition_seasonal).rename('seasonal adjusted')
-df_adjusted
-
-# COMMAND ----------
-
-# 음수가 있네..;
-df_adjusted.describe()
-
-# COMMAND ----------
-
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-
-fig = go.Figure([
-    # 원 데이터-------------------------------------------------------
-    go.Scatter(x = df.index, y = df, name = "raw", mode = 'lines')
-    # 계절성 조정 데이터------------------------------------------------------
-    , go.Scatter(x = df_adjusted.index, y = df_adjusted, name = "adjusted", mode = 'lines')
-])
-fig.update_layout(title = '<b>[collectible_average_usd] 계절성 조정 비교<b>', title_x=0.5, legend=dict(orientation="h", xanchor="right", x=1, y=1.1))
-fig.update_yaxes(ticklabelposition="inside top", title=None)
-fig.show()
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC # 교차 및 시차 상관계수(Cross Correlation)
+# MAGIC # Cross Correlation(상호상관분석)
 # MAGIC - 위키피디아: https://en.wikipedia.org/wiki/Cross-correlation
 # MAGIC - 1d 배열 : statsmodelCCF, numpy.correlate, matplotlib.pyplot.xcorr(numpy.correlate 기반)
 # MAGIC   - https://www.statsmodels.org/dev/generated/statsmodels.tsa.stattools.ccf.html
@@ -712,12 +267,13 @@ fig.show()
 
 # COMMAND ----------
 
-pd.options.display.float_format = '{: .4f}'.format
+# MAGIC %md
+# MAGIC ## 0. CC 라이브러리 스터디
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 예제1 : statsmodel CCF
+# MAGIC ### 예제1 : statsmodel CCF
 # MAGIC - adjusted (=unbiased): 참이면 교차 상관의 분모는 nk이고 그렇지 않으면 n입니다.
 # MAGIC   - 편향되지 않은 것이 참이면 자기공분산의 분모가 조정되지만 자기상관은 편향되지 않은 추정량이 아닙니다.
 # MAGIC - fft : True이면 FFT 컨볼루션을 사용합니다. 이 방법은 긴 시계열에 대해 선호되어야 합니다.
@@ -743,7 +299,7 @@ sm.tsa.stattools.ccf(marketing, revenue, adjusted=False)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 예제2 : numpy.correlate
+# MAGIC ### 예제2 : numpy.correlate
 
 # COMMAND ----------
 
@@ -760,7 +316,7 @@ print(result)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## ccf와 correlate 와의 차이
+# MAGIC ### ccf와 correlate 와의 차이
 # MAGIC - https://stackoverflow.com/questions/24616671/numpy-and-statsmodels-give-different-values-when-calculating-correlations-how-t
 # MAGIC - ccf는 np.correlate 베이스이지만, 통계적의미에서 상관관계를 위한 추가 작업을 수행함
 # MAGIC - numpy가 표준편차의 곱으로 공분산을 정규화 하지 않음, 값이 너무 큼
@@ -792,11 +348,7 @@ print(result)
 
 # COMMAND ----------
 
-col_list = feature_classifier(data, 'average_usd')
-
-# COMMAND ----------
-
-avgusd = data[col_list]
+avgusd = data[feature_classifier(data, 'average_usd')]
 avgusd.head()
 
 # COMMAND ----------
@@ -837,16 +389,9 @@ plt.plot(ccf(avgusd_game, avgusd_game, adjusted=False))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### (교차)상관계수 시각화
+# MAGIC ### 교차상관계수 시각화
 # MAGIC - https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.xcorr.html
 # MAGIC   - 이건 어떻게 커스텀을 못하겠다..
-
-# COMMAND ----------
-
-import matplotlib.pyplot as plt
-from warnings import filterwarnings
-filterwarnings("ignore")
-plt.style.use("ggplot")
 
 # COMMAND ----------
 
@@ -908,7 +453,15 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 함수 생성
+# MAGIC ## 1. CCF-CC 교차 상관계수(Cross Correlation)
+# MAGIC - avgusd 카테고리별 비교, 시가총액과 비교
+# MAGIC - 변수간 동행성(comovement) 측정
+# MAGIC - 경기순응적(pro-cyclical) / 경기중립적(a-cyclical) / 경기역행적(counter-cyclical)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### [함수] 교차상관계수 차트 생성기
 
 # COMMAND ----------
 
@@ -967,16 +520,9 @@ def ccfcc_plot(data, feature):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## CCF-CC 교차 상관계수(Cross Correlation)
-# MAGIC - avgusd 카테고리별 비교, 시가총액과 비교
-# MAGIC - 변수간 동행성(comovement) 측정
-# MAGIC - 경기순응적(pro-cyclical) / 경기중립적(a-cyclical) / 경기역행적(counter-cyclical)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 자기교차상관
+# MAGIC ### 자기교차상관
 # MAGIC - 전체카테고리별 인덱스204~366 (약6개월에서 1년주기)까지 동행성이 있음
+# MAGIC - acf와 동일함
 
 # COMMAND ----------
 
@@ -1032,8 +578,12 @@ def autoCorrelationF1(data, feature):
 
 # COMMAND ----------
 
+autoCorrelationF1(data, 'average_usd')
+
+# COMMAND ----------
+
 # MAGIC %md
-# MAGIC #### 상호교차상관
+# MAGIC ### 상호교차상관
 # MAGIC - 카테고리가 너무 많다. 4개만 교차해서 보자 collectible_avgusd, game_avgusd, all_avgusd, all_sales_usd
 # MAGIC - 인덱스265~315 (약9개월에서 10개월주기)까지 동행성이 있음
 
@@ -1077,13 +627,13 @@ def ccfcc_plot1(data):
 
 # COMMAND ----------
 
-# 1열은 자기교차상관, 2~3열이 상호교차상관 그래프
+#  2~3열이 상호교차상관 그래프
 ccfcc_plot1(data)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## CCF-LC 시차 상관계수(leads and lags correlation)
+# MAGIC ## 2. CCF-LC 시차 상관계수(leads and lags correlation)
 # MAGIC - 시차 상호 상관(TLCC) https://dive-into-ds.tistory.com/96
 # MAGIC - 선행적(leading) / 동행적(coincident) / 후행적(lagging)
 
@@ -1098,16 +648,15 @@ ccfcc_plot1(data)
 
 # COMMAND ----------
 
-pd.options.display.float_format = '{:.2f}'.format
-
-# COMMAND ----------
-
 #  시차상관계수 계산함수
 def TLCC(X, Y, lag):
     result=[]
+    print(lag)
     for i in range(lag):
+        print(i)
         result.append(X.corr(Y.shift(i)))
-    return result
+        print(result)
+    return np.round(result, 4)
 #         print(i, np.round(result[i], 4))
 #     print(f'시차상관계수가 가장 높은 lag = <{np.argmax(result)}>')
 
@@ -1125,14 +674,17 @@ TLCC(data['all_average_usd'], data['all_number_of_sales'], 100)
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### avg_usd피처, 카테고리별 시차상관분석
+
+# COMMAND ----------
+
 # defi는 21-01-16에 들어옴, 총 1704중ㅇ에 400개, 1/6도 안되므로 제외한다
 # data[['defi_average_usd']]['2021-01-15':]
 avgusd_col_list = feature_classifier(data, 'average_usd')
 avgusd_col_list.remove('defi_average_usd')
-print(avgusd_col_list )
-
-all_col_list = ['all_active_market_wallets','all_number_of_sales','all_average_usd','all_primary_sales','all_primary_sales_usd','all_sales_usd','all_secondary_sales','all_secondary_sales_usd','all_unique_buyers']
-print(all_col_list)
+# avgusd_col_list.remove('all_average_usd')
+print(len(avgusd_col_list), avgusd_col_list ) 
 
 # COMMAND ----------
 
@@ -1144,7 +696,7 @@ def TLCC_plot(data, col_list, nlag):
     TLCC_list = []
 
     for i in range(len(col_list)):
-        for j in range(1, len(col_list)):
+        for j in range(len(col_list)):
             if col_list[i] == col_list[j]:
                 pass
             else:
@@ -1173,7 +725,8 @@ def TLCC_plot(data, col_list, nlag):
 
 # COMMAND ----------
 
- TLCC_plot(data, avgusd_col_list[1:], 14)
+# 그래프 너무 많다. 보기 힘드니까 생략하자
+TLCC_plot(data, avgusd_col_list, 14)
 
 # COMMAND ----------
 
@@ -1183,11 +736,14 @@ def TLCC_table(data, col_list, nlag):
     xcol_list = []
     ycol_list = []
     TLCC_list = []
+    TLCC_max_idx_list = []
+    TLCC_max_list = []
     havetomoreX = []
     havetomoreY = []
+    result = []
 
     for i in range(len(col_list)):
-        for j in range(1, len(col_list)):
+        for j in range(len(col_list)):
             if col_list[i] == col_list[j]:
                 pass
             else:
@@ -1195,32 +751,40 @@ def TLCC_table(data, col_list, nlag):
                 ycol_list.append(col_list[j])
                 tlccdata = TLCC(data[col_list[i]], data[col_list[j]], nlag)
                 TLCC_list.append(tlccdata)
-#                 print(col_list[i], col_list[j])
-#                 print(tlccdata)
-#                 print(np.argmax(tlccdata))
-#                 print(np.argmax(TLCC_list[i]))
-                max_TLCC_idx = np.argmax(tlccdata)
-                max_TLCC = np.round(max(tlccdata),4)
-                if max_TLCC >= 0.7:
-                    result = '높음'
-                elif max_TLCC > 0.3 and max_TLCC < 0.7:
-                    result = '보통'
-                else :
-                    result = '낮음'
-                print(col_list[i], '|', col_list[j], '|', max_TLCC_idx, '|', max_TLCC, '|', result)
-            
                 
-                if max_TLCC_idx == nlag-1:
+                TLCC_max_idx= np.argmax(tlccdata)
+                TLCC_max_idx_list.append(TLCC_max_idx)
+                if TLCC_max_idx == nlag-1:
                     havetomoreX.append(col_list[i])
                     havetomoreY.append(col_list[j])
-
-    return havetomoreX, havetomoreY
+    
+                TLCC_max = max(tlccdata)
+                TLCC_max_list.append(TLCC_max)
+                if TLCC_max >= 0.9:
+                    result.append('*****')  # 아주 높은 상관관계
+                elif TLCC_max >= 0.7 and TLCC_max < 0.9: 
+                    result.append('****')# 높은 상관관계가 있음
+                elif TLCC_max >= 0.4 and TLCC_max < 0.7:
+                    result.append('***')# 다소 상관관계가 있음
+                elif TLCC_max >= 0.2 and TLCC_max < 0.4:
+                    result.append('**')# 약한 상관관계
+                elif TLCC_max < 0.2:
+                    result.append('*')# 상관관계 거의 없음
+                else :
+                    print('분기 체크 필요')
+                    
+    # 결과 테이블 생성
+    result_df = pd.DataFrame(data=list(zip(xcol_list, ycol_list, TLCC_max_idx_list, TLCC_max_list, result)), columns=['Lead(X)', 'Lag(Y)', 'TLCC_max_idx', 'TLCC_max', 'result'])
+    
+    # max_tlcc_idx가 최대lag와 동일한 칼럼 반환                
+    return havetomoreX, havetomoreY, result_df
 
 # COMMAND ----------
 
 # game이 후행인 경우는 모두 가장 높은 lag가 값이 높다. 더 올려보자
 # utility는 다른카테고리와 거의 시차상관성이 없다.
-havetomoreX, havetomoreY = TLCC_table(data, avgusd_col_list[1:], 14)
+havetomoreX, havetomoreY, result_df = TLCC_table(data, avgusd_col_list, 14)
+result_df
 
 # COMMAND ----------
 
@@ -1235,46 +799,374 @@ for i in range(len(havetomoreX)):
 
 # COMMAND ----------
 
-# 카테고리별 평균가 시차상관분석 실험 결과
-- 대부분 카테고리의 시차상관계수가 가장 높을 떄는 lag=0 즉, 동행성을 보인다.
-- 시차지연되는 경우는,"game"이 후행일때 34~143의 지연을 보인다.
-- 시차상관성이 낮은 경우는, utility 이다. 선행/후행 모두 낮음
-- 대표로 collectible-game 59로 공적분 검증해보자
+# 최대 lag값으로 다시 확인해보자
+havetomoreX, havetomoreY, result_df = TLCC_table(data, avgusd_col_list, 150)
+result_df
 
 # COMMAND ----------
 
- TLCC_plot(data, all_col_list, 14)
+# 선행/후행을 쌍으로 재정렬하는 함수
+def TLCC_table_filtered(data):
+    result_xy_list = []
+    result_after_x = []
+    result_after_y = []
+    for i in range(len(data)):
+        result_xy_list.append(list(data.iloc[i, :2].values))
+
+    for i in range(len(result_xy_list)):
+        for j in range(len(result_xy_list)):
+            if result_xy_list[i][0] == result_xy_list[j][1]  and result_xy_list[i][1] == result_xy_list[j][0]:
+                result_after_x.append(result_xy_list[i][0])
+                result_after_y.append(result_xy_list[i][1])
+                result_after_x.append(result_xy_list[j][0])
+                result_after_y.append(result_xy_list[j][1])
+
+
+    result_XY_df = pd.DataFrame(data=list(zip(result_after_x, result_after_y)), columns=['after_X','after_Y']) # 'x->y, y->x 쌍변수 리스트
+    result_XY_df.drop_duplicates(inplace=True) # 중복 제거
+    result_XY_df.reset_index(inplace=True) # 인덱스 리셋
+    
+    after_X = []
+    after_Y = []
+    TLCC_max_idx = []
+    TLCC_max = []
+    result = []
+    print('<<TLCC 데이터프레임에서 쌍변수순으로 필터링>>')
+    for i in range(len(result_XY_df)):
+        xrow = data[data['Lead(X)']==result_XY_df['after_X'][i]]
+        xyrow = xrow[xrow['Lag(Y)']==result_XY_df['after_Y'][i]]
+        after_X.append(xyrow.values[0][0])
+        after_Y.append(xyrow.values[0][1])
+        TLCC_max_idx.append(xyrow.values[0][2])
+        TLCC_max.append(xyrow.values[0][3])
+        result.append(xyrow.values[0][4])
+
+    result_df_filtered = pd.DataFrame(data=list(zip(after_X, after_Y, TLCC_max_idx, TLCC_max, result)), columns=['Lead(X)', 'Lag(Y)', 'TLCC_max_idx', 'TLCC_max', 'result'])
+    return result_df_filtered
 
 # COMMAND ----------
 
-# avgusd가 후행인경우 lag값이 가장 높다. 더 올려보자
-
-havetomoreX, havetomoreY = TLCC_table(data, all_col_list, 14)
-
-# COMMAND ----------
-
-print(havetomoreX)
-print(havetomoreY)
+# 재정렬된 데이터프레임, 총 30개 행
+result_df_filtered = TLCC_table_filtered(result_df)
+print(len(result_df_filtered))
+result_df_filtered
 
 # COMMAND ----------
 
-for i in range(len(havetomoreX)):
-    tlccdata = TLCC(data[havetomoreX[i]], data[havetomoreY[i]], 150)
-    print(havetomoreX[i], havetomoreY[i], np.argmax(tlccdata), np.round(max(tlccdata),4))
+# 높은 상관관계만 추려보자(0.5 이상) 20개
+good = result_df_filtered[result_df_filtered['TLCC_max'] >= 0.5] #  0.7이상이 18개
+print(len(good))
+good
+# all->art(22), collectible/metaverse->all(54), all->game(44), art<->collectible(0), art->game(32), metaverse->art(99), collectible->game(58), meta->collec(95), meta->game(143)
 
 # COMMAND ----------
 
-# all카테고리 피처별 시차상관분석 실험 결과
-- 대부분 카테고리의 시차상관계수가 가장 높을 떄는 lag=0 즉, 동행성을 보인다.
-- 시차지연되는 경우는,"avgusd"가 후행일때 71~100의 지연을 보인다.
-- 시차상관성이 낮은 경우는 primary sales가 상대적으로 낮았다. 0.6~0.8  선행/후행 모두 낮음
+# 보통/낮은 상관관계만 추려보자(0.5 이하) 10개
+bad = result_df_filtered[result_df_filtered['TLCC_max'] <= 0.5]
+print(len(bad))
+bad
 
--  avgusd-buyer 71을 대표로 공적분 검증해보자
+# COMMAND ----------
+
+# 최근 한달 중앙값
+data[avgusd_col_list][-30:].median()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 시차상관계수 예제 따라하기..
+# MAGIC #### [실험 결과] avg_usd 카테고리별 시차상관분석
+# MAGIC ### 상관관계가 낮은 케이스
+# MAGIC ####  - utility
+# MAGIC ---
+# MAGIC ### 상관관계가 높은 케이스
+# MAGIC ####  - 동행 : art-collectible/metaverse, collectible-metaverse, game-collectible
+# MAGIC     - 특이사항) art/collectible/metaverse는 모두 평단가가 높은 카테고리이다. 추정유저군인 전문투자자들은 즉각 반응 하나봄
+# MAGIC       - art시장 가격거품이 빠지면 다른 시장도 영향을 받는 것임
+# MAGIC     - 특이사항) game-collectible은 유일하게 전체 상관분석에도 높았었는데..아무래도 유저군이 겹치는 것으로 추정됨(이유는 아래 계속)
+# MAGIC ####  - 지연 : art/collectible/metaverse-game(32,58,143), metaverse-collectible(95)
+# MAGIC     - 특이사항) game이 선행인 지연케이스는 없음, 즉 게임평균가는 다른 카테고리를 리드하지 않는다.
+# MAGIC       - 유입/활동이 제일 많아 nft마켓의 비중은 높으나 "마켓의 가격형성"에 영향을 주지 않는것으로 보아, 유저 오디언스 특징이 다른 것으로 추정. 라이트유저(게임하며 돈벌기) vs 헤비유저(전문투자자)
+# MAGIC       - 투자관점에서 게임카테고리는 투자해봤자 돈이 안되겠네..
+# MAGIC       - 게임만 다른카테고리와 분명하게 다른 경향을 보이는 이유
+# MAGIC         - 평균가 범위 갭이 매우 큼, 최근 한달 중앙값 게임 193 vs 3514, 1384, 2402
+# MAGIC         - game 평균가는 엄청 작은데 판매수 매우 많아서 시장가치(sales usd) 비중이 꽤 높음, 22년1월 중앙값 게임 25% vs 14.2%, 55.4%, 5.3% 
+# MAGIC ---
+# MAGIC ### 의문점1 : 왜 극단적으로 동행성(0) vs 1~5달지연(34-149)으로 나뉠까? 
+# MAGIC ####  - 반응이 너무 느리다. 일정기간이 넘으면 무의미한것 아닐까..? 그것을 알기 위해, all을 같이 봐야겠다.
+# MAGIC     - 동행 : all-collectible, art/game-all
+# MAGIC     - 지연 : all-art/game(22, 44), collectible/metaverse-all(54, 54),
+# MAGIC       - 의문점) all은 포괄인데 왜 art/game보다 선행하나? 재귀적 영향관계??
+# MAGIC       - 의문점) 시장가치 비중 14%인 art가 all과 동행하고, 나머지 2개는 54일이다. 왜일까? 외부 요인이 있을 것으로 추정(언론이슈)
+# MAGIC     - 종합 : 전체 평균가와 가장 높은 지연인 54를 기준으로 참고할 수 있을까? 아니면 매우 긴 지연도 유의미 하는걸까?(재귀적 영향관계로?) -
+# MAGIC ---
+# MAGIC ### 의문점2 : 선행/후행의 결과가 같거나 다를 경우 해석은 어떻게??
+# MAGIC ####  - 상호 동행 : 거의 특징이 동일하다고 봐도 될듯
+# MAGIC     - art<->collectible(0)
+# MAGIC ####  - 편 지연(편동행 생략) : a는 b에 바로 반응이 갈 정도로 영향이 크지만, b는 상대적으로 낮다?
+# MAGIC     - metaverse -> art/collectible(99,55) -> game(32,58), meta->game(14),  collectible/metaverse->all(54), 3) all->art/game(22,44)
+# MAGIC       - 인과에 따라서 메타버스가 game에 영향을 주는 거라면 143이 유의미할 수도 있을 듯
+# MAGIC       - all이 art/game에 재귀적으로 영향을 주는 거라면 all피처가 유의미할 수도 있을 듯
+# MAGIC ####  - 상호 지연 : 즉시 반응을 줄정도의 영향력은 없는, 상대적으로 서로에게 낮은 영향력을 가졌나?
+# MAGIC     - 없음, 이 케이스가 합리적인 명제인지도 모르겠음 헷갈림
+# MAGIC ---
+# MAGIC 위 의문을 해소하기 위한 인과검정이 필요하다.
+# MAGIC ---
+# MAGIC #### 케이스 셀렉션
+# MAGIC - 공적분 검정용 케이스 : 일단..대표 지연케이스로 collectible->game(59)를 공적분 검증해보자
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### 대표 케이스 시차상관계수 비교 테이블
+
+# COMMAND ----------
+
+avgusd_col_list
+
+# COMMAND ----------
+
+# 월 중앙값 집계 데이터
+dataM_median = data.resample('M').median()
+dataM_median.head()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [함수] 시차상관계수 차트 생성기
+
+# COMMAND ----------
+
+#  시차상관계수 계산함수
+def TLCC_comparison(X, Y, start_lag, end_lag):
+    result=[]
+    laglist = []
+    for i in range(start_lag, end_lag+1):
+        result.append(X.corr(Y.shift(i)))
+        laglist.append(i)
+    return laglist, np.round(result, 4)
+
+# COMMAND ----------
+
+# 차트 함수
+def TLCC_comparison_plot1(data, X, Y, startlag, endlag): # 데이터, 기준변수, 비교변수, startlag, endlag
+    Ylist = Y.copy()
+    Ylist.remove(X)  # 입력한 변수에서 삭제되기때문에 사전 카피필요
+    Yindex_list = [X, *Ylist]
+    tlcc_list = []
+    lag_var_list= []
+    lvar_tlcc_list=[]
+    sd_list = []
+    rsd_list = []
+    
+    # y별 lag, tlcc값 받아오기
+    for i in range(len(Yindex_list)): 
+        ydata = data[Yindex_list[i]]
+        lag_list,  result = TLCC_comparison(data[X], ydata, startlag, endlag) 
+        tlcc_list.append(result)
+        sd_list.append(numpy.std(ydata))   # =stdev(범위)
+        rsd_list.append(numpy.std(ydata)/numpy.mean(ydata)*100)  # stdev(범위)/average(범위)*100
+
+#     # lag별 tlcc값 바인딩 변수 만들기(=칼럼)
+#     for i in range(len(lag_list)):
+#         lag_var_list.append([]) #  lag별 tlcc값을 바인딩할 그릇 생성
+#         for j in range(len(tlcc_list)):
+#              lag_var_list[i].append(tlcc_list[j][i])
+
+    # 데이터프레임용 데이터 만들기
+    temp = tlcc_list.copy()
+    dfdata = list(zip(Yindex_list, sd_list, rsd_list, *list(zip(*temp)))) # temp..array를 zip할수 있도록 풀어줘야함..
+    
+    # 데이터프레임용 칼럼명 리스트 만들기
+    column_list = ['Y변수', '표준편차', '상대표준편차', *lag_list]  
+
+    result_df = pd.DataFrame(data=dfdata, columns= column_list,)
+#     result_df = pd.DataFrame(data=dfdata, index = Yindex_list, columns= column_list)
+#     result_df.index.name = f"X={X}" #  인덱스 이름 변경
+
+    return result_df
+
+# COMMAND ----------
+
+# 월 중앙값 기준
+print(f"<<<X기준 Y의 변동폭 및 시차상관계수 테이블>>>")
+result_df = TLCC_comparison_plot1(dataM_median, 'collectible_average_usd', avgusd_col_list, -6, 6)
+result_df
+
+# COMMAND ----------
+
+## 데이터프레임 스타일
+# result_df.style.set_precision(2)
+pd.set_option('display.precision', 2) # 소수점 글로벌 설정
+result_df.style.background_gradient(cmap='Blues').set_caption(f"<b><<<'X(0)기준 Y의 변동폭 및 시차상관계수'>>><b>")
+# df.style.applymap(lambda i: 'background-color: red' if i > 3 else '')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [결론] 월 중앙값 기준 시차상관분석(collectible_avgusd 기준)
+# MAGIC - utility는 상관관계 없음
+# MAGIC - metaverse는 -lag가 관계가 있고 +lag는 관계가 떨어지는 것으로 보아, meta -> collec 관계로 보임
+# MAGIC - art, game 모두 +lag관계가 높은 것으로 보아, collec->meta관계로 보임, art는 6개월차에 관계가 높아짐
+# MAGIC - 표준편차/ 상대표준편차 값이 너무 커서 판단이 어렵다. 평균을 함께 봐야하나?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### all카테고리, 피처별 시차상관분석
+
+# COMMAND ----------
+
+all_col_list = ['all_active_market_wallets','all_number_of_sales','all_average_usd','all_primary_sales','all_primary_sales_usd','all_sales_usd','all_secondary_sales','all_secondary_sales_usd','all_unique_buyers','all_unique_sellers']
+print(len(all_col_list), all_col_list) # 총 10개 카테고리
+
+# COMMAND ----------
+
+# 그래프 너무 많다. 보기 힘드니까 생략하자
+#  TLCC_plot(data, all_col_list, 14)
+
+# COMMAND ----------
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+
+# COMMAND ----------
+
+# avgusd가 후행인경우 lag값이 가장 높다. 더 올려보자
+havetomoreX, havetomoreY, result_df = TLCC_table(data, all_col_list, 14)
+result_df
+
+# COMMAND ----------
+
+print(havetomoreX)
+print(havetomoreY)
+
+# COMMAND ----------
+
+for i in range(len(havetomoreX)):
+    tlccdata = TLCC(data[havetomoreX[i]], data[havetomoreY[i]], 150)
+    print(havetomoreX[i], havetomoreY[i], np.argmax(tlccdata), np.round(max(tlccdata),4))
+
+# COMMAND ----------
+
+# 최대 lag값으로 다시 확인해보자
+havetomoreX, havetomoreY, result_df = TLCC_table(data, all_col_list, 150)
+result_df
+
+# COMMAND ----------
+
+# 재정렬된 데이터프레임, 총 90개행
+result_df_filtered = TLCC_table_filtered(result_df)
+print(len(result_df_filtered))
+result_df_filtered
+
+# COMMAND ----------
+
+# 높은 상관관계만 추려보자(0.75 이상) 총 93개행
+good = result_df_filtered[result_df_filtered['TLCC_max'] >= 0.75]
+print(len(good))
+good
+# 동행성-동행
+# 총지갑수<->총판매수/1차판매수/2차판매수/2차매출/구매자수/판매자수,  총판매수<->1차판매수/2차판매수/2차매출/구매자수/판매자수, 1차판매수<->2차판매수/2차매출/구매자수, 총매출<->2차매출
+# 2차판매수<->구매자수/판매자수, 2차매출<->구매자수, 구매자수<->판매자수
+
+# 동행-지연
+# 총지갑수->총매출(124), 총판매수->1차매출(132)/총매출(123), 평균가->1차매출(98), 총매출->평균가(98), 1차판매수->1차매출(119)/총매출(117)/판매자수(143), 총매출->1차매출(98), 2차매출->1차매출(118)
+# 2차판매수->총매출(127), 구매자수->총매출(123), 판매자수->총매출(130), 2차판매수->2차매출(125)
+# 판매자수->2차매출(127)
+
+# 지연-지연
+#  총지갑수<->평평균가(100<->70),1차매출(132<->56)  , 총판매수<->평균가(100,66), 평균가<->1차판매수(66,100),2차판매수(65, 100),2차매출(33,98),구매자수(71,100),판매자수(67,100),  1차매출<->2차판매수(56,134)
+# 1차매출<->구매자수(56,132),판매자수(56,135)
+
+# COMMAND ----------
+
+# 보통/낮은 상관관계만 추려보자(0.75 이하) 없음 7개
+bad = result_df_filtered[result_df_filtered['TLCC_max'] <= 0.75]
+print(len(bad))
+bad
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [실험 결과] all카테고리 피처별 시차상관분석 
+# MAGIC 
+# MAGIC ### 상관관계가 낮은 케이스
+# MAGIC ####  - 대체로 높다. 1차매출이 리드하는 경우가 상대적으로 0.6~7로 낮은편
+# MAGIC ---
+# MAGIC ### 상관관계가 높은 케이스
+# MAGIC - 항목이 많아 분석이 어렵다. 구체적인 과제에 맞춰 분석하는게 좋을 듯
+# MAGIC - **평균가 기준) 총지갑수/총판매수/1차판매수/2차판매수/2차매출/구매자수/판매자수는 평균가와 대체로 2~3달의 상호지연관계이고, 총매출과 평균가 그리고 1차매출은 약 3달의 편지연관계를 갖는다.**
+# MAGIC - **특이사항) 시차지연의 경우, 위 평균가 피처별분석와 동일하거나 상대적으로 높은 편이고(33~143), "상호지연관계" 많다.**
+# MAGIC - **의문점 ) "평균가와 구매자수의 지연관계가 2~3달이면 생각보다 너무 길다"**  
+# MAGIC 
+# MAGIC #### 상호 동행
+# MAGIC - 총지갑수<->총판매수/1차판매수/2차판매수/2차매출/구매자수/판매자수,  총판매수<->1차판매수/2차판매수/2차매출/구매자수/판매자수, 
+# MAGIC - 1차판매수<->2차판매수/2차매출/구매자수, 총매출<->2차매출, 2차판매수<->구매자수/판매자수, 2차매출<->구매자수, 구매자수<->판매자수 
+# MAGIC 
+# MAGIC #### 편 지연(편동행 생략)
+# MAGIC - 총지갑수->총매출(124), 총판매수->1차매출(132)/총매출(123), 평균가->1차매출(98), 총매출->평균가(98), 1차판매수->1차매출(119)/총매출(117)/판매자수(143)
+# MAGIC - 총매출->1차매출(98), 2차매출->1차매출(118), 2차판매수->총매출(127), 구매자수->총매출(123), 판매자수->총매출(130), 2차판매수->2차매출(125), 판매자수->2차매출(127)
+# MAGIC 
+# MAGIC #### 상호 지연
+# MAGIC - 총지갑수<->평균가(100,70)/1차매출(132,56), 총판매수<->평균가(100,66), 평균가<->1차판매수(66,100)/2차판매수(65, 100)/2차매출(33,98)/구매자수(71,100)/판매자수(67,100)
+# MAGIC - 1차매출<->2차판매수(56,134), 1차매출<->구매자수(56,132),판매자수(56,135)
+# MAGIC 
+# MAGIC ---
+# MAGIC #### 케이스 셀렉션
+# MAGIC - 공적분 검정용 케이스 : 일단..대표 지연케이스로 avgusd->buyer(71)을 공적분 검증해보자(avg_usd를 예측했으니까..)**
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### 대표 케이스 시차상관계수 비교 테이블
+
+# COMMAND ----------
+
+all_col_list
+
+# COMMAND ----------
+
+# 월 중앙값 집계 데이터
+dataM_median.head()
+
+# COMMAND ----------
+
+# 월 중앙값 기준
+print(f"<<<X기준 Y의 변동폭 및 시차상관계수 테이블>>>")
+result_df = TLCC_comparison_plot1(dataM_median, 'all_average_usd', all_col_list, -6, 6)
+result_df
+
+# COMMAND ----------
+
+## 데이터프레임 스타일
+# result_df.style.set_precision(2) #안되네..
+pd.set_option('display.precision', 2) # 소수점 글로벌 설정
+# pd.set_option("styler.format.thousands", ",")#안되네..
+# result_df.style.format(thousands=",") # 안됨
+result_df.style.background_gradient(cmap='Blues').set_caption(f"<b><<<'X(0)기준 Y의 변동폭 및 시차상관계수'>>><b>")
+
+# df.style.applymap(lambda i: 'background-color: red' if i > 3 else '')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [결론] 월 중앙값 기준 시차상관분석(all_avgusd 기준)
+# MAGIC - 자기상관 : 한달 전후만 있음
+# MAGIC - 상호지연관계 : 지갑수, 판매수, 1차판매수, 2차판매수, 구매자수, 판매자수
+# MAGIC - 상호동행관계 : 1차매출
+# MAGIC - 편지연관계 : 총매출과 2차매출이 평균가에 영향을 줌
+# MAGIC - 표준편차/ 상대표준편차 값이 너무 커서 판단이 어렵다. 평균을 함께 봐야하나?
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 시각화(pass)
+# MAGIC - 예제 해석을 못하겠어서 pass
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC #### 예제1: line
 # MAGIC - 어떻게 해석을 해야할지 모르겠다
 
 # COMMAND ----------
@@ -1324,10 +1216,6 @@ plt.legend()
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
 #  해석어케함.. offset 양수이므로 s2가 선행한다? 이건 이상한데.. 평균가보다 마켓이 선행한다고?. 세일즈랑 비교해봐야하나.
 s1 = data['all_average_usd']
 s2 = data['all_sales_usd']
@@ -1374,17 +1262,13 @@ plt.legend()
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### 기간 지연된 상호 상관
+# MAGIC %md 
+# MAGIC #### 예제2: heatmap
 # MAGIC - 이것도 뭘어떻게 봐야할지 모르겠다.
 
 # COMMAND ----------
 
 data.shape[0]//20
-
-# COMMAND ----------
-
-import seaborn as sb
 
 # COMMAND ----------
 
@@ -1428,14 +1312,25 @@ ax.set(title=f'Rolling Windowed Time Lagged Cross Correlation',xlabel='Offset',y
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 공적분 검증(그레인저 인과검정)
+# MAGIC ## 3. 공적분 검정(Cointegration Test)
 # MAGIC - 상관관계와 유사한 공적분은 두 변수간의 비율이 평균을 중심으로 달라짐을 의미한다
 # MAGIC - 공적분 관계는, 단기적으로 서로 다른 패턴을 보이지만 장기적으로 볼 때 일정한 관계가 있음을 의미함
+# MAGIC - 귀무가설 : 비정상 시계열 간의 조합에 따른 오차항에 단위근이 존재한다. 즉, 서로 공적분 관계가 존재하지 않는다.
+# MAGIC   -  p-value값이 5%보다 작을 때 귀무가설을 기각하여 공적분관계가 있음을 알 수 있다.
+# MAGIC - 크게 2가지 검정 방법이 있는데, 대표적으로 요한슨 검정을 많이 함
+# MAGIC   - engel & granget 검정 ,  johansen 검정
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Engle-Granger Test
 # MAGIC - statsmodels.coint 는 engle-granger 기반
-# MAGIC - 귀무가설 : 서로 공적분 관계가 존재하지 않는다.즉, p-value값이 5%보다 작을 때 귀무가설을 기각하여 공적분관계가 있음을 알 수 있다.
+# MAGIC - 회귀분석 결과의 잔차항에 대해 검정
+# MAGIC - N개의 비정상시계열 사이에는 일반적으로 N-1개까지의 공적분 관계가 존재할 수 있다
+# MAGIC - EG 공적분 검정은 세 개 이상의 비정상시계열 사이의 공적분 검정부터 한계 가짐
 # MAGIC 
-# MAGIC - https://mkjjo.github.io/finance/2019/01/25/pair_trading.html
-# MAGIC - https://lsjsj92.tistory.com/584
+# MAGIC - [앵글&그레인저 공적분 검정 예제1](https://mkjjo.github.io/finance/2019/01/25/pair_trading.html)
+# MAGIC - [앵글&그레인저 공적분 검정 예제2](https://lsjsj92.tistory.com/584)
 
 # COMMAND ----------
 
@@ -1549,7 +1444,8 @@ print('Log data Cointegration test p-value: ' + str(pvalue))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 대표 관계, lag별 공적분 검증하기
+# MAGIC #### (pass)lag별 공적분 검증
+# MAGIC -> 본래 lag별로 공적분 검증을 하지는 않음, 공적분 여부에 따라 다변량분석 기법이 달라지기 때문
 # MAGIC - all카테고리 대표 : avgusd-buyer 71, 공적분 검증 성공(min=94)
 # MAGIC   - 종합 : 전체 평균가와 전체 구매자수는 장기관점에서 인과성이 있다. 평균가가 71~94일 정도 선행한다.
 # MAGIC - avgusd피처 대표 : collectible-game 59, 공적분 검증 성공(min=66), 
@@ -1604,11 +1500,52 @@ plt.show()
 
 # COMMAND ----------
 
-
+# MAGIC %md
+# MAGIC ### Johansen Test
+# MAGIC - 벡터 형태로 검정, EG 공적분 검정의 한계 없음
 
 # COMMAND ----------
 
 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 그레인저 인과검정(Granger Causality)
+# MAGIC - [클라이브 그레인저 위키](https://ko.wikipedia.org/wiki/%ED%81%B4%EB%9D%BC%EC%9D%B4%EB%B8%8C_%EA%B7%B8%EB%A0%88%EC%9D%B8%EC%A0%80)
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 다변량 시계열 분석
+# MAGIC -  공적분 미존재시 VAR
+# MAGIC - 공적분 존재시 VECM
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 공적분 미존재시 VAR
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 공적분 존재시 VECM
+# MAGIC  
+# MAGIC - [VECM 예제](https://m.blog.naver.com/PostView.naver?isHttpsRedirect=true&blogId=gush14&logNo=120145414589)
+# MAGIC - [파이썬 예제](http://incredible.ai/trading/2021/07/01/Pair-Trading/)
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 충격반응분석
 
 # COMMAND ----------
 
