@@ -722,7 +722,7 @@ box(total, 'all', 'wholeMarket', 'year_month', '2017', '2017')
 # COMMAND ----------
 
 #  Y축 조정
-box(total, 'all', 'wholeMarket', 'year_month', '2021', '2022')
+box(total, 'all', 'wholeMarket', 'year_month', '2018', '2020')
 
 # COMMAND ----------
 
@@ -1510,6 +1510,14 @@ heatmapF(total[:'2021'], 'average_usd')
 # all은 collectible, defi와 상관성이 높고, metaverse와 utility는 거의없다. defi는 데이터가 많지 않아서 판단하기 어려움.
 # collectible 기준으로 다른피처와 상관성도 all과 유사하다. collectible -> all 로 보면 될 듯. -> 이 피처를 예측하면 되려나?
 heatmapF(totalM_median_log['2018':], 'average_usd') 
+
+# COMMAND ----------
+
+heatmapF(totalM_median_log['2018':'2020'], 'average_usd') 
+
+# COMMAND ----------
+
+heatmapF(totalM_median_log['2021':'2022'], 'average_usd') 
 
 # COMMAND ----------
 

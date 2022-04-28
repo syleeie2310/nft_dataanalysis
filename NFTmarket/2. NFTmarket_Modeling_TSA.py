@@ -262,8 +262,12 @@ diff_plot(np.log1p(data), 'average_usd', 'acf') #raw df, feature
 # MAGIC - 귀무가설이 단위근이 존재한다.
 # MAGIC - adf 작을 수록 귀무가설을 기각시킬 확률이 높다
 # MAGIC #### 2. Kwiatkowski-Phillips-Schmidt-Shin (“KPSS”) Test
-# MAGIC - 1종 오류를 범할 문제를 제거한 안정성 검정 방법
-# MAGIC - 귀무가설이 단위근이 존재하지 않는다.
+# MAGIC - KPSS 검정은 1종 오류의 발생가능성을 제거한 단위근 검정 방법이다.
+# MAGIC - DF 검정, ADF 검정과 PP 검정의 귀무가설은 단위근이 존재한다는 것이나, KPSS 검정의 귀무가설은 정상 과정 (stationary process)으로 검정 결과의 해석 시 유의할 필요가 있다.
+# MAGIC   - 귀무가설이 단위근이 존재하지 않는다.
+# MAGIC - 단위근 검정과 정상성 검정을 모두 수행함으로서 정상 시계열, 단위근 시계열, 또 확실히 식별하기 어려운 시계열을 구분하였다.
+# MAGIC - KPSS 검정은 단위근의 부재가 정상성 여부에 대한 근거가 되지 못하며 대립가설이 채택되면 그 시계열은 trend-stationarity(추세를 제거하면 정상성이 되는 시계열)을 가진다고 할 수 있습니다.
+# MAGIC - 때문에 KPSS 검정은 단위근을 가지지 않고 Trend- stationary인 시계열은 비정상 시계열이라고 판단할 수 있습니다.
 
 # COMMAND ----------
 
@@ -544,6 +548,16 @@ fig.show()
 
 # COMMAND ----------
 
+import pandas as pd
+from statsmodels.tsa.seasonal import seasonal_decompose
+df = data['game_average_usd']
+decomposition = seasonal_decompose(df, model='additive', period=365) 
+# 일자데이터... 기간 어케함 ㅜ, 자동 달력변동이 안되고 덧셈분해만 가능
+fig = plot_seasonal_decompose(decomposition, dates=df.index)
+fig.show()
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ##### log변환 데이터
 
@@ -670,3 +684,24 @@ fig = go.Figure([
 fig.update_layout(title = '<b>[collectible_average_usd] 계절성 조정 비교<b>', title_x=0.5, legend=dict(orientation="h", xanchor="right", x=1, y=1.1))
 fig.update_yaxes(ticklabelposition="inside top", title=None)
 fig.show()
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 상호상관분석(Cross Correlation)
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
