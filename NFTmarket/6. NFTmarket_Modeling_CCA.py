@@ -137,6 +137,21 @@ print(result)
 
 # COMMAND ----------
 
+# 카테고리별 피처 분류기
+def feature_classifier(data, feature):
+    col_list = []
+    for i in range(len(data.columns)):
+        split_col = data.columns[i].split('_', maxsplit=1)[1]
+        if split_col == feature:       
+            col_list.append(data.columns[i])
+        elif split_col == 'all_sales_usd' and feature == 'sales_usd' : #콜렉터블만 sales_usd앞에 all이붙어서 따로 처리해줌
+            col_list.append('collectible_all_sales_usd')
+        else :
+            pass
+    return col_list
+
+# COMMAND ----------
+
 avgusd = data[feature_classifier(data, 'average_usd')]
 avgusd.head()
 
@@ -251,21 +266,6 @@ plt.show()
 
 # MAGIC %md
 # MAGIC ### [함수] 교차상관계수 차트 생성기
-
-# COMMAND ----------
-
-# 카테고리별 피처 분류기
-def feature_classifier(data, feature):
-    col_list = []
-    for i in range(len(data.columns)):
-        split_col = data.columns[i].split('_', maxsplit=1)[1]
-        if split_col == feature:       
-            col_list.append(data.columns[i])
-        elif split_col == 'all_sales_usd' and feature == 'sales_usd' : #콜렉터블만 sales_usd앞에 all이붙어서 따로 처리해줌
-            col_list.append('collectible_all_sales_usd')
-        else :
-            pass
-    return col_list
 
 # COMMAND ----------
 
@@ -440,13 +440,9 @@ ccfcc_plot1(data)
 #  시차상관계수 계산함수
 def TLCC(X, Y, lag):
     result=[]
-    print(lag)
     for i in range(lag):
-        print(i)
         result.append(X.corr(Y.shift(i)))
-        print(result)
     return np.round(result, 4)
-#         print(i, np.round(result[i], 4))
 #     print(f'시차상관계수가 가장 높은 lag = <{np.argmax(result)}>')
 
 # COMMAND ----------
@@ -465,6 +461,21 @@ TLCC(data['all_average_usd'], data['all_number_of_sales'], 100)
 
 # MAGIC %md
 # MAGIC ### avg_usd피처, 카테고리별 시차상관분석
+
+# COMMAND ----------
+
+# 카테고리별 피처 분류기
+def feature_classifier(data, feature):
+    col_list = []
+    for i in range(len(data.columns)):
+        split_col = data.columns[i].split('_', maxsplit=1)[1]
+        if split_col == feature:       
+            col_list.append(data.columns[i])
+        elif split_col == 'all_sales_usd' and feature == 'sales_usd' : #콜렉터블만 sales_usd앞에 all이붙어서 따로 처리해줌
+            col_list.append('collectible_all_sales_usd')
+        else :
+            pass
+    return col_list
 
 # COMMAND ----------
 
@@ -740,7 +751,8 @@ def TLCC_comparison(X, Y, start_lag, end_lag):
 def TLCC_comparison_table(data, X, Y, startlag, endlag): # 데이터, 기준변수, 비교변수, startlag, endlag
     Ylist = Y.copy()
     Ylist.remove(X)  # 입력한 변수에서 삭제되기때문에 사전 카피필요
-    Yindex_list = [X, *Ylist]
+    Y_list = [X, *Ylist]
+    X_list = []
     tlcc_list = []
     lag_var_list= []
     lvar_tlcc_list=[]
@@ -748,31 +760,42 @@ def TLCC_comparison_table(data, X, Y, startlag, endlag): # 데이터, 기준변�
     rsd_list = []
     
     # y별 lag, tlcc값 받아오기
-    for i in range(len(Yindex_list)): 
-        ydata = data[Yindex_list[i]]
+    for i in range(len(Y_list)): 
+        ydata = data[Y_list[i]]
         lag_list,  result = TLCC_comparison(data[X], ydata, startlag, endlag) 
         tlcc_list.append(result)
         sd_list.append(np.std(ydata))   # =stdev(범위)
-        rsd_list.append(np.std(ydata)/np.mean(ydata)*100)  # stdev(범위)/average(범위)*100
-
-#     # lag별 tlcc값 바인딩 변수 만들기(=칼럼)
-#     for i in range(len(lag_list)):
-#         lag_var_list.append([]) #  lag별 tlcc값을 바인딩할 그릇 생성
-#         for j in range(len(tlcc_list)):
-#              lag_var_list[i].append(tlcc_list[j][i])
-
+        rsd_list.append(np.std(ydata)/np.mean(ydata)*100)  # RSD = stdev(범위)/average(범위)*100, 
+        # RSD(상대표준편차) or CV(변동계수) : 똑같은 방법으로 얻은 데이터들이 서로 얼마나 잘 일치하느냐 하는 정도를 가리키는 정밀도를 나타내는 성능계수, 값이 작을 수록 정밀하다.
+        X_list.append(X)
+        
     # 데이터프레임용 데이터 만들기
     temp = tlcc_list.copy()
-    dfdata = list(zip(Yindex_list, sd_list, rsd_list, *list(zip(*temp)))) # temp..array를 zip할수 있도록 풀어줘야함..
+    dfdata = list(zip(X_list, Y_list, sd_list, rsd_list, *list(zip(*temp)))) # temp..array를 zip할수 있도록 풀어줘야함..
     
     # 데이터프레임용 칼럼명 리스트 만들기
-    column_list = ['Y변수', '표준편차', '상대표준편차', *lag_list]  
+    column_list = ['X변수', 'Y변수', 'Y표준편차', 'Y상대표준편차', *lag_list]  
 
     result_df = pd.DataFrame(data=dfdata, columns= column_list,)
-#     result_df = pd.DataFrame(data=dfdata, index = Yindex_list, columns= column_list)
-#     result_df.index.name = f"X={X}" #  인덱스 이름 변경
 
     return result_df
+
+# COMMAND ----------
+
+# 판다스 스타일의 천의자리 구분은 1.3 부터 지원함
+# pd.__version__ #  pip install --upgrade pandas==1.3  # import pandas as pd
+
+# 데이터프레임 비주얼라이제이션 함수
+def visualDF(dataframe):
+#     pd.set_option('display.precision', 2) # 소수점 글로벌 설정
+    pd.set_option('display.float_format',  '{:.2f}'.format)
+    dataframe = dataframe.style.bar(subset=['Y표준편차','Y상대표준편차'])\
+    .background_gradient(subset=[*result_df.columns[4:]], cmap='Blues', vmin = 0.5, vmax = 0.9)\
+    .set_caption(f"<b><<< X변수({result_df['X변수'][0]})기준 Y의 시차상관계수'>>><b>")\
+    .format(thousands=',')\
+    .set_properties(
+        **{'border': '1px black solid !important'})
+    return dataframe
 
 # COMMAND ----------
 
@@ -783,11 +806,8 @@ result_df
 
 # COMMAND ----------
 
-## 데이터프레임 스타일
-# result_df.style.set_precision(2)
-pd.set_option('display.precision', 2) # 소수점 글로벌 설정
-result_df.style.background_gradient(cmap='Blues').set_caption(f"<b><<<'X(0)기준 Y의 변동폭 및 시차상관계수'>>><b>")
-# df.style.applymap(lambda i: 'background-color: red' if i > 3 else '')
+# 월중앙값 전체기간
+visualDF(result_df)
 
 # COMMAND ----------
 
@@ -802,21 +822,20 @@ result_df
 
 # COMMAND ----------
 
-## 데이터프레임 스타일 "2018년 이후 (game데이터는 2017년 데이터 없음)"
-# result_df.style.set_precision(2)
-pd.set_option('display.precision', 2) # 소수점 글로벌 설정
-result_df.style.background_gradient(cmap='Blues').set_caption(f"<b><<<'X(0)기준 Y의 변동폭 및 시차상관계수'>>><b>")
-# df.style.applymap(lambda i: 'background-color: red' if i > 3 else '')
+# 월중앙값 2018년 이후
+visualDF(result_df)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC #### [결론] 월 중앙값 기준 시차상관분석(collectible_avgusd 기준)
 # MAGIC - 2018년이후 데이터로 분석하니, 모든 카테고리 상관성이 높아졌다.(특히 과거 시차관련)
-# MAGIC - utility는 상관관계 없음
-# MAGIC - metaverse는 -lag가 관계가 있고 +lag는 관계가 떨어지는 것으로 보아, meta -> collec 관계로 보임
-# MAGIC - art, game 모두 +lag관계가 높은 것으로 보아, collec->meta관계로 보임, art는 6개월차에 관계가 높아짐
-# MAGIC - 표준편차/ 상대표준편차 값이 너무 커서 판단이 어렵다. 평균을 함께 봐야하나?
+# MAGIC - collectible의 자기상관도는 매우 높으나 RSD 정밀도가 낮다.
+# MAGIC - RSD(상대표준편차)는 metaverse가 상대적으로 정밀도가 높고, art와 all의 정밀도가 낮다.
+# MAGIC - utility는 상관성이 없다.
+# MAGIC - metaverse는 y변수가 음수 일 때 상관성이 매우 높으므로 X가 후행한다. metaverse -> collectible  "매우 명확"
+# MAGIC - all, art, game은 y변수가 양수일 때 상관성이 음수일 보다 상대적으로 더 높다.
+# MAGIC   - 그런데 -2음수일때도 높은 것으로 보다 상호지연관계가 있으면서, 동시에 X의 선행 영향력이 더 크다. collectible -> all/art/game(단 게임은 비교적 짧다)
 
 # COMMAND ----------
 
@@ -947,24 +966,17 @@ result_df
 
 # COMMAND ----------
 
-## 데이터프레임 스타일
-# result_df.style.set_precision(2) #안되네..
-pd.set_option('display.precision', 2) # 소수점 글로벌 설정
-# pd.set_option("styler.format.thousands", ",")#안되네..
-# result_df.style.format(thousands=",") # 안됨
-result_df.style.background_gradient(cmap='Blues').set_caption(f"<b><<<'X(0)기준 Y의 변동폭 및 시차상관계수'>>><b>")
-
-# df.style.applymap(lambda i: 'background-color: red' if i > 3 else '')
+# 월중앙값 기준
+visualDF(result_df)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC #### [결론] 월 중앙값 기준 시차상관분석(all_avgusd 기준)
-# MAGIC - 자기상관 : 한달 전후만 있음
-# MAGIC - 상호지연관계 : 지갑수, 판매수, 1차판매수, 2차판매수, 구매자수, 판매자수
-# MAGIC - 상호동행관계 : 1차매출
-# MAGIC - 편지연관계 : 총매출과 2차매출이 평균가에 영향을 줌
-# MAGIC - 표준편차/ 상대표준편차 값이 너무 커서 판단이 어렵다. 평균을 함께 봐야하나?
+# MAGIC - all_avgusd의 자기상은 한달 전후가 매우 높음
+# MAGIC - RSD는 1차판매수의 정밀도가 상대적으로 높은편이다.
+# MAGIC - 대체로 상관성이 매우 높은데 y가 음수일 때 상관성이 상대적으로 더 높으므로 X가 후행한다. Y -> 평균가
+# MAGIC - 특이점은 일부(가격류)를 제외하고 2달 내외부터 상관성이 높아진다는 것. 즉 가격류는 상호 동행하고 그외는 약2달의 지연 관계가 있다.
 
 # COMMAND ----------
 
@@ -1157,7 +1169,6 @@ import statsmodels.tsa.stattools as ts
 
 # COMMAND ----------
 
-
 # 공적분 관계 시각화 (두변수간의 비율이 평균을 중심으로달라지는지 확인) -> 어떻게 보는거지? 장기적으로 편차가 적어지면 장기적 관계가 있다??
 import statsmodels.tsa.stattools as ts
 X = data['collectible_average_usd']['2018':]
@@ -1165,30 +1176,24 @@ Y = data['game_average_usd']['2018':]
 
 # 디폴트 : raw데이터(로그변환/스케일링등 정규화하면 안됨, 특징 사라짐), augmented engle&granger(default), maxlag(none), trend='c'
 score, pvalue, _ = ts.coint(X,Y)
-print('Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('ADF score: ' + str( np.round(score, 4) ))
-print('Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
+print('default : 상수 only(기울기 없음)')
+print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
 print('='*50)
 
-print('추세 상수&기울기')
 score, pvalue, _ = ts.coint(X,Y, trend='ct')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
+print('추세 상수&기울기')
+print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
 print('='*50)
 
 print('추세 상수&기울기(2차)')
 score, pvalue, _ = ts.coint(X,Y, trend='ctt')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
+print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
 print('='*50)
 
 print('추세 없음')
 score, pvalue, _ = ts.coint(X,Y, trend='nc')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
+print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
+print('='*50)
 
 (Y/X).plot(figsize=(30,10))
 plt.axhline((Y/X).mean(), color='red', linestyle='--')
@@ -1201,8 +1206,8 @@ plt.show()
 
 # MAGIC %md
 # MAGIC #### [EG결과] collectible avgusd vs game avgusd
-# MAGIC - 추세 상수&기울기(2차) 케이스 : p-value값이 0.85로 0.05를 초과하여 귀무가설을 채택하여 **공적분관계 없음**
-# MAGIC - 추세 없음 케이스 : p-value값이 0.33로 0.05를 초과하여 귀무가설을 채택하여 **공적분관계 없음**
+# MAGIC - 추세 상수&기울기(2차) 케이스 : p-value값이 0.85로 0.05를 초과하여 귀무가설을 채택하여 **공적분관계 없음, VAR모형 채택**
+# MAGIC - 추세 없음 케이스 : p-value값이 0.33로 0.05를 초과하여 귀무가설을 채택하여 **공적분관계 없음, VAR모형 채택**
 
 # COMMAND ----------
 
@@ -1213,41 +1218,35 @@ Y = data['all_unique_buyers']
 
 # 디폴트 : raw데이터(로그변환/스케일링등 정규화하면 안됨, 특징 사라짐), augmented engle&granger(default), maxlag(none), trend='c'
 score, pvalue, _ = ts.coint(X,Y)
-print('Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('ADF score: ' + str( np.round(score, 4) ))
-print('Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
+print('default : 상수 only(기울기 없음)')
+print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
 print('='*50)
 
-print('추세 상수&기울기')
 score, pvalue, _ = ts.coint(X,Y, trend='ct')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
+print('추세 상수&기울기')
+print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
 print('='*50)
 
 print('추세 상수&기울기(2차)')
 score, pvalue, _ = ts.coint(X,Y, trend='ctt')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
+print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
 print('='*50)
 
 print('추세 없음')
 score, pvalue, _ = ts.coint(X,Y, trend='nc')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
+print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
+print('='*50)
 
 (Y/X).plot(figsize=(30,10))
 plt.axhline((Y/X).mean(), color='red', linestyle='--')
 plt.xlabel('Time')
-plt.title('총구매자수/총평균가 Ratio')
-plt.legend(['총구매자수/총평균가 Ratio', 'Mean'])
+plt.title('all_buyers / all_avg_usd Ratio')
+plt.legend(['all_buyers / all_avg_usd Ratio', 'Mean'])
 plt.show()
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC #### [EG결과] all_avgusd vs all_buyers
-# MAGIC - 추세 상수&기울기(2차) 케이스 : p-value값이 0.55로 0.05를 초과하여 귀무가설을 채택하여 **공적분관계 없음**
-# MAGIC - 추세 없음 케이스 : p-value값이 0.13로 0.05를 초과하여 귀무가설을 채택하여 **공적분관계 없음**
+# MAGIC - 추세 상수&기울기(2차) 케이스 : p-value값이 0.55로 0.05를 초과하여 귀무가설을 채택하여 **공적분관계 없음, VAR모형 채택**
+# MAGIC - 추세 없음 케이스 : p-value값이 0.13로 0.05를 초과하여 귀무가설을 채택하여 **공적분관계 없음, VAR모형 채택**
