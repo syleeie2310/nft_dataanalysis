@@ -382,14 +382,14 @@ autoCorrelationF1(data, 'average_usd')
 def ccfcc_plot1(data):
 
     col_list = ['collectible_average_usd', 'game_average_usd','all_average_usd', 'all_sales_usd']
-    xcol_list = []
-    ycol_list = []
+    x1col_list = []
+    x2col_list = []
     ccfdata_list = []
     
     for i in range(len(col_list)-1):
         for j in range(1, len(col_list)):
-            xcol_list.append(col_list[i])
-            ycol_list.append(col_list[j])
+            x1col_list.append(col_list[i])
+            x2col_list.append(col_list[j])
             ccfdata_list.append(ccf(data[col_list[i]], data[col_list[j]], adjusted=False))
             
     plt.figure(figsize=(30,30), dpi=80)
@@ -403,7 +403,7 @@ def ccfcc_plot1(data):
 
         # /* Draw Plot */
         plt.subplot(3, 3, i+1)   
-        plt.title(f'<{xcol_list[i]} X {ycol_list[i]}, {min(np.where(ccfdata < 0)[0])-1} >', fontsize=22)
+        plt.title(f'<{x1col_list[i]} X {x2col_list[i]}, {min(np.where(ccfdata < 0)[0])-1} >', fontsize=22)
         plt.bar(x=np.arange(nlags), height=ccfdata, width=.3)
         plt.xlim(0,nlags)        
 
@@ -438,10 +438,10 @@ ccfcc_plot1(data)
 # COMMAND ----------
 
 #  시차상관계수 계산함수
-def TLCC(X, Y, lag):
+def TLCC(X1, X2, lag):
     result=[]
     for i in range(lag):
-        result.append(X.corr(Y.shift(i)))
+        result.append(X1.corr(X2.shift(i)))
     return np.round(result, 4)
 #     print(f'시차상관계수가 가장 높은 lag = <{np.argmax(result)}>')
 
@@ -491,8 +491,8 @@ print(len(avgusd_col_list), avgusd_col_list )
 ## TLCC 차트 생성기
 def TLCC_plot(data, col_list, nlag):
 
-    xcol_list = []
-    ycol_list = []
+    x1col_list = []
+    x2col_list = []
     TLCC_list = []
 
     for i in range(len(col_list)):
@@ -500,8 +500,8 @@ def TLCC_plot(data, col_list, nlag):
             if col_list[i] == col_list[j]:
                 pass
             else:
-                xcol_list.append(col_list[i])
-                ycol_list.append(col_list[j])
+                x1col_list.append(col_list[i])
+                x2col_list.append(col_list[j])
                 tlccdata =TLCC(data[col_list[i]], data[col_list[j]], nlag)
                 TLCC_list.append(tlccdata)
 
@@ -509,12 +509,12 @@ def TLCC_plot(data, col_list, nlag):
     plt.suptitle("TLCC Plot", fontsize=40)
     
     ncols = 3
-    nrows = len(xcol_list)//3+1
+    nrows = len(x1col_list)//3+1
     
     for i in range(len(TLCC_list)): 
         tlccdata = TLCC_list[i]
         plt.subplot(nrows, ncols, i+1)   
-        plt.title(f'<{xcol_list[i]} X {ycol_list[i]}, {np.argmax(tlccdata)} >', fontsize=22)
+        plt.title(f'<{x1col_list[i]} X {x2col_list[i]}, {np.argmax(tlccdata)} >', fontsize=22)
         plt.plot(np.arange(len(tlccdata)), tlccdata)
         plt.xlim(-1,len(tlccdata)+1)        
         plt.vlines(np.argmax(tlccdata), ymin=min(tlccdata), ymax=max(tlccdata) , color='blue',linestyle='--',label='Peak synchrony')
@@ -533,13 +533,13 @@ def TLCC_plot(data, col_list, nlag):
 ## TLCC table 생성기
 def TLCC_table(data, col_list, nlag):
 
-    xcol_list = []
-    ycol_list = []
+    x1col_list = []
+    x2col_list = []
     TLCC_list = []
     TLCC_max_idx_list = []
     TLCC_max_list = []
-    havetomoreX = []
-    havetomoreY = []
+    havetomoreX1 = []
+    havetomoreX2 = []
     result = []
 
     for i in range(len(col_list)):
@@ -547,16 +547,16 @@ def TLCC_table(data, col_list, nlag):
             if col_list[i] == col_list[j]:
                 pass
             else:
-                xcol_list.append(col_list[i])
-                ycol_list.append(col_list[j])
+                x1col_list.append(col_list[i])
+                x2col_list.append(col_list[j])
                 tlccdata = TLCC(data[col_list[i]], data[col_list[j]], nlag)
                 TLCC_list.append(tlccdata)
                 
                 TLCC_max_idx= np.argmax(tlccdata)
                 TLCC_max_idx_list.append(TLCC_max_idx)
                 if TLCC_max_idx == nlag-1:
-                    havetomoreX.append(col_list[i])
-                    havetomoreY.append(col_list[j])
+                    havetomoreX1.append(col_list[i])
+                    havetomoreX2.append(col_list[j])
     
                 TLCC_max = max(tlccdata)
                 TLCC_max_list.append(TLCC_max)
@@ -574,74 +574,74 @@ def TLCC_table(data, col_list, nlag):
                     print('분기 체크 필요')
                     
     # 결과 테이블 생성
-    result_df = pd.DataFrame(data=list(zip(xcol_list, ycol_list, TLCC_max_idx_list, TLCC_max_list, result)), columns=['Lead(X)', 'Lag(Y)', 'TLCC_max_idx', 'TLCC_max', 'result'])
+    result_df = pd.DataFrame(data=list(zip(x1col_list, x2col_list, TLCC_max_idx_list, TLCC_max_list, result)), columns=['Lead(x1)', 'Lag(x2)', 'TLCC_max_idx', 'TLCC_max', 'result'])
     
     # max_tlcc_idx가 최대lag와 동일한 칼럼 반환                
-    return havetomoreX, havetomoreY, result_df
+    return havetomoreX1, havetomoreX2, result_df
 
 # COMMAND ----------
 
 # game이 후행인 경우는 모두 가장 높은 lag가 값이 높다. 더 올려보자
 # utility는 다른카테고리와 거의 시차상관성이 없다.
-havetomoreX, havetomoreY, result_df = TLCC_table(data, avgusd_col_list, 14)
+havetomoreX1, havetomoreX2, result_df = TLCC_table(data, avgusd_col_list, 14)
 result_df
 
 # COMMAND ----------
 
-print(havetomoreX)
-print(havetomoreY)
+print(havetomoreX1)
+print(havetomoreX2)
 
 # COMMAND ----------
 
-for i in range(len(havetomoreX)):
-    tlccdata = TLCC(data[havetomoreX[i]], data[havetomoreY[i]], 150)
-    print(havetomoreX[i], havetomoreY[i], np.argmax(tlccdata), np.round(max(tlccdata),4))
+for i in range(len(havetomoreX1)):
+    tlccdata = TLCC(data[havetomoreX1[i]], data[havetomoreX2[i]], 150)
+    print(havetomoreX1[i], havetomoreX2[i], np.argmax(tlccdata), np.round(max(tlccdata),4))
 
 # COMMAND ----------
 
 # 최대 lag값으로 다시 확인해보자
-havetomoreX, havetomoreY, result_df = TLCC_table(data, avgusd_col_list, 150)
+havetomoreX1, havetomoreX2, result_df = TLCC_table(data, avgusd_col_list, 150)
 result_df
 
 # COMMAND ----------
 
 # 선행/후행을 쌍으로 재정렬하는 함수
 def TLCC_table_filtered(data):
-    result_xy_list = []
-    result_after_x = []
-    result_after_y = []
+    result_x1x2_list = []
+    result_after_x1 = []
+    result_after_x2 = []
     for i in range(len(data)):
-        result_xy_list.append(list(data.iloc[i, :2].values))
+        result_x1x2_list.append(list(data.iloc[i, :2].values))
 
-    for i in range(len(result_xy_list)):
-        for j in range(len(result_xy_list)):
-            if result_xy_list[i][0] == result_xy_list[j][1]  and result_xy_list[i][1] == result_xy_list[j][0]:
-                result_after_x.append(result_xy_list[i][0])
-                result_after_y.append(result_xy_list[i][1])
-                result_after_x.append(result_xy_list[j][0])
-                result_after_y.append(result_xy_list[j][1])
+    for i in range(len(result_x1x2_list)):
+        for j in range(len(result_x1x2_list)):
+            if result_x1x2_list[i][0] == result_x1x2_list[j][1]  and result_x1x2_list[i][1] == result_x1x2_list[j][0]:
+                result_after_x1.append(result_x1x2_list[i][0])
+                result_after_x2.append(result_x1x2_list[i][1])
+                result_after_x1.append(result_x1x2_list[j][0])
+                result_after_x2.append(result_x1x2_list[j][1])
 
 
-    result_XY_df = pd.DataFrame(data=list(zip(result_after_x, result_after_y)), columns=['after_X','after_Y']) # 'x->y, y->x 쌍변수 리스트
-    result_XY_df.drop_duplicates(inplace=True) # 중복 제거
-    result_XY_df.reset_index(inplace=True) # 인덱스 리셋
+    result_x1x2_df = pd.DataFrame(data=list(zip(result_after_x1, result_after_x2)), columns=['after_x1','after_x2']) # 'x1->x2, x2->x1 쌍변수 리스트
+    result_x1x2_df.drop_duplicates(inplace=True) # 중복 제거
+    result_x1x2_df.reset_index(inplace=True) # 인덱스 리셋
     
-    after_X = []
-    after_Y = []
+    after_x1 = []
+    after_x2 = []
     TLCC_max_idx = []
     TLCC_max = []
     result = []
     print('<<TLCC 데이터프레임에서 쌍변수순으로 필터링>>')
-    for i in range(len(result_XY_df)):
-        xrow = data[data['Lead(X)']==result_XY_df['after_X'][i]]
-        xyrow = xrow[xrow['Lag(Y)']==result_XY_df['after_Y'][i]]
-        after_X.append(xyrow.values[0][0])
-        after_Y.append(xyrow.values[0][1])
-        TLCC_max_idx.append(xyrow.values[0][2])
-        TLCC_max.append(xyrow.values[0][3])
-        result.append(xyrow.values[0][4])
+    for i in range(len(result_x1x2_df)):
+        xrow = data[data['Lead(x1)']==result_x1x2_df['after_x1'][i]]
+        x1x2row = xrow[xrow['Lag(x2)']==result_x1x2_df['after_x2'][i]]
+        after_x1.append(x1x2row.values[0][0])
+        after_x2.append(x1x2row.values[0][1])
+        TLCC_max_idx.append(x1x2row.values[0][2])
+        TLCC_max.append(x1x2row.values[0][3])
+        result.append(x1x2row.values[0][4])
 
-    result_df_filtered = pd.DataFrame(data=list(zip(after_X, after_Y, TLCC_max_idx, TLCC_max, result)), columns=['Lead(X)', 'Lag(Y)', 'TLCC_max_idx', 'TLCC_max', 'result'])
+    result_df_filtered = pd.DataFrame(data=list(zip(after_x1, after_x2, TLCC_max_idx, TLCC_max, result)), columns=['Lead(x1)', 'Lag(x2)', 'TLCC_max_idx', 'TLCC_max', 'result'])
     return result_df_filtered
 
 # COMMAND ----------
@@ -737,44 +737,44 @@ dataM_median.head()
 # COMMAND ----------
 
 #  시차상관계수 계산함수
-def TLCC_comparison(X, Y, start_lag, end_lag):
+def TLCC_comparison(X1, X2, start_lag, end_lag):
     result=[]
     laglist = []
     for i in range(start_lag, end_lag+1):
-        result.append(X.corr(Y.shift(i)))
+        result.append(X1.corr(X2.shift(i)))
         laglist.append(i)
     return laglist, np.round(result, 4)
 
 # COMMAND ----------
 
 # 차트 함수
-def TLCC_comparison_table(data, X, Y, startlag, endlag): # 데이터, 기준변수, 비교변수, startlag, endlag
-    Ylist = Y.copy()
-    Ylist.remove(X)  # 입력한 변수에서 삭제되기때문에 사전 카피필요
-    Y_list = [X, *Ylist]
-    X_list = []
+def TLCC_comparison_table(data, x1, x2, startlag, endlag): # 데이터, 기준변수, 비교변수, startlag, endlag
+    x2list = x2.copy()
+    x2list.remove(x1)  # 입력한 변수에서 삭제되기때문에 사전 카피필요
+    x2_list = [x1, *x2list]
+    x1_list = []
     tlcc_list = []
     lag_var_list= []
     lvar_tlcc_list=[]
     sd_list = []
     rsd_list = []
     
-    # y별 lag, tlcc값 받아오기
-    for i in range(len(Y_list)): 
-        ydata = data[Y_list[i]]
-        lag_list,  result = TLCC_comparison(data[X], ydata, startlag, endlag) 
+    # x2별 lag, tlcc값 받아오기
+    for i in range(len(x2_list)): 
+        x2data = data[x2_list[i]]
+        lag_list,  result = TLCC_comparison(data[x1], x2data, startlag, endlag) 
         tlcc_list.append(result)
-        sd_list.append(np.std(ydata))   # =stdev(범위)
-        rsd_list.append(np.std(ydata)/np.mean(ydata)*100)  # RSD = stdev(범위)/average(범위)*100, 
+        sd_list.append(np.std(x2data))   # =stdev(범위)
+        rsd_list.append(np.std(x2data)/np.mean(x2data)*100)  # RSD = stdev(범위)/average(범위)*100, 
         # RSD(상대표준편차) or CV(변동계수) : 똑같은 방법으로 얻은 데이터들이 서로 얼마나 잘 일치하느냐 하는 정도를 가리키는 정밀도를 나타내는 성능계수, 값이 작을 수록 정밀하다.
-        X_list.append(X)
+        x1_list.append(x1)
         
     # 데이터프레임용 데이터 만들기
     temp = tlcc_list.copy()
-    dfdata = list(zip(X_list, Y_list, sd_list, rsd_list, *list(zip(*temp)))) # temp..array를 zip할수 있도록 풀어줘야함..
+    dfdata = list(zip(x1_list, x2_list, sd_list, rsd_list, *list(zip(*temp)))) # temp..array를 zip할수 있도록 풀어줘야함..
     
     # 데이터프레임용 칼럼명 리스트 만들기
-    column_list = ['X변수', 'Y변수', 'Y표준편차', 'Y상대표준편차', *lag_list]  
+    column_list = ['X1변수', 'X2변수', 'X2표준편차', 'X2상대표준편차', *lag_list]  
 
     result_df = pd.DataFrame(data=dfdata, columns= column_list,)
 
@@ -789,9 +789,9 @@ def TLCC_comparison_table(data, X, Y, startlag, endlag): # 데이터, 기준변�
 def visualDF(dataframe):
 #     pd.set_option('display.precision', 2) # 소수점 글로벌 설정
     pd.set_option('display.float_format',  '{:.2f}'.format)
-    dataframe = dataframe.style.bar(subset=['Y표준편차','Y상대표준편차'])\
+    dataframe = dataframe.style.bar(subset=['X2표준편차','X2상대표준편차'])\
     .background_gradient(subset=[*result_df.columns[4:]], cmap='Blues', vmin = 0.5, vmax = 0.9)\
-    .set_caption(f"<b><<< X변수({result_df['X변수'][0]})기준 Y의 시차상관계수'>>><b>")\
+    .set_caption(f"<b><<< X1변수({result_df['X1변수'][0]})기준 X2의 시차상관계수'>>><b>")\
     .format(thousands=',')\
     .set_properties(
         **{'border': '1px black solid !important'})
@@ -800,14 +800,14 @@ def visualDF(dataframe):
 # COMMAND ----------
 
 # 월 중앙값 기준      # collectible에 대한 교차시차상관분석
-print(f"<<<X기준 Y의 변동폭 및 시차상관계수 테이블>>>")
+print(f"<<<X1기준 X2의 변동폭 및 시차상관계수 테이블>>>")
 result_df = TLCC_comparison_table(dataM_median, 'collectible_average_usd', avgusd_col_list, -6, 6)
 result_df
 
 # COMMAND ----------
 
 # 월중앙값 전체기간
-visualDF(result_df)
+visualDF(result_df) 
 
 # COMMAND ----------
 
@@ -816,7 +816,7 @@ visualDF(result_df)
 # COMMAND ----------
 
 # 월 중앙값 기준 "2018년 이후 (game데이터는 2017년 데이터 없음)"
-print(f"<<<X기준 Y의 변동폭 및 시차상관계수 테이블>>>")
+print(f"<<<X1기준 X2의 변동폭 및 시차상관계수 테이블>>>")
 result_df = TLCC_comparison_table(dataM_median['2018':], 'collectible_average_usd', avgusd_col_list, -6, 6)
 result_df
 
@@ -835,7 +835,7 @@ visualDF(result_df)
 # MAGIC - utility는 상관성이 없다.
 # MAGIC - metaverse는 y변수가 음수 일 때 상관성이 매우 높으므로 X가 후행한다. metaverse -> collectible  "매우 명확"
 # MAGIC - all, art, game은 y변수가 양수일 때 상관성이 음수일 보다 상대적으로 더 높다.
-# MAGIC   - 그런데 -2음수일때도 높은 것으로 보다 상호지연관계가 있으면서, 동시에 X의 선행 영향력이 더 크다. collectible -> all/art/game(단 게임은 비교적 짧다)
+# MAGIC   - 그런데 -2음수일때도 높은 것으로 보다 상호지연관계가 있으면서, 동시에 X의 선행 영향력이 더 크다. collectible <->> all/art/game(단 게임은 비교적 짧다)
 
 # COMMAND ----------
 
@@ -860,24 +860,24 @@ pd.set_option('display.max_rows', None)
 # COMMAND ----------
 
 # avgusd가 후행인경우 lag값이 가장 높다. 더 올려보자
-havetomoreX, havetomoreY, result_df = TLCC_table(data, all_col_list, 14)
+havetomoreX1, havetomoreX2, result_df = TLCC_table(data, all_col_list, 14)
 result_df
 
 # COMMAND ----------
 
-print(havetomoreX)
-print(havetomoreY)
+print(havetomoreX1)
+print(havetomoreX2)
 
 # COMMAND ----------
 
-for i in range(len(havetomoreX)):
-    tlccdata = TLCC(data[havetomoreX[i]], data[havetomoreY[i]], 150)
-    print(havetomoreX[i], havetomoreY[i], np.argmax(tlccdata), np.round(max(tlccdata),4))
+for i in range(len(havetomoreX1)):
+    tlccdata = TLCC(data[havetomoreX1[i]], data[havetomoreX2[i]], 150)
+    print(havetomoreX1[i], havetomoreX2[i], np.argmax(tlccdata), np.round(max(tlccdata),4))
 
 # COMMAND ----------
 
 # 최대 lag값으로 다시 확인해보자
-havetomoreX, havetomoreY, result_df = TLCC_table(data, all_col_list, 150)
+havetomoreX1, havetomoreX2, result_df = TLCC_table(data, all_col_list, 150)
 result_df
 
 # COMMAND ----------
@@ -960,7 +960,7 @@ dataM_median.head()
 # COMMAND ----------
 
 # 월 중앙값 기준
-print(f"<<<X기준 Y의 변동폭 및 시차상관계수 테이블>>>")
+print(f"<<<X1기준 X2의 변동폭 및 시차상관계수 테이블>>>")
 result_df = TLCC_comparison_table(dataM_median, 'all_average_usd', all_col_list, -6, 6)
 result_df
 
@@ -975,7 +975,7 @@ visualDF(result_df)
 # MAGIC #### [결론] 월 중앙값 기준 시차상관분석(all_avgusd 기준)
 # MAGIC - all_avgusd의 자기상은 한달 전후가 매우 높음
 # MAGIC - RSD는 1차판매수의 정밀도가 상대적으로 높은편이다.
-# MAGIC - 대체로 상관성이 매우 높은데 y가 음수일 때 상관성이 상대적으로 더 높으므로 X가 후행한다. Y -> 평균가
+# MAGIC - 대체로 상관성이 매우 높은데 X2가 음수일 때 상관성이 상대적으로 더 높으므로 X1가 후행한다. X2 -> 평균가
 # MAGIC - 특이점은 일부(가격류)를 제외하고 2달 내외부터 상관성이 높아진다는 것. 즉 가격류는 상호 동행하고 그외는 약2달의 지연 관계가 있다.
 
 # COMMAND ----------
@@ -992,7 +992,7 @@ visualDF(result_df)
 
 # COMMAND ----------
 
-def crosscorr(datax, datay, lag=0, wrap=False):
+def crosscorr(datax1, datax2, lag=0, wrap=False):
 # """ Lag-N cross correlation. 
 # Shifted data filled with NaNs 
 
@@ -1006,11 +1006,11 @@ def crosscorr(datax, datay, lag=0, wrap=False):
 # crosscorr : float
 # """
     if wrap:
-        shiftedy = datay.shift(lag)
-        shiftedy.iloc[:lag] = datay.iloc[-lag:].values
-        return datax.corr(shiftedy)
+        shiftedx2 = datax2.shift(lag)
+        shiftedx2.iloc[:lag] = datax2.iloc[-lag:].values
+        return datax1.corr(shiftedx2)
     else: 
-        return datax.corr(datay.shift(lag))
+        return datax1.corr(datay.shift(lag))
 
 # COMMAND ----------
 
@@ -1171,32 +1171,21 @@ import statsmodels.tsa.stattools as ts
 
 # 공적분 관계 시각화 (두변수간의 비율이 평균을 중심으로달라지는지 확인) -> 어떻게 보는거지? 장기적으로 편차가 적어지면 장기적 관계가 있다??
 import statsmodels.tsa.stattools as ts
-X = data['collectible_average_usd']['2018':]
-Y = data['game_average_usd']['2018':]
+x1 = data['collectible_average_usd']['2018':]
+x2 = data['game_average_usd']['2018':]
 
 # 디폴트 : raw데이터(로그변환/스케일링등 정규화하면 안됨, 특징 사라짐), augmented engle&granger(default), maxlag(none), trend='c'
-score, pvalue, _ = ts.coint(X,Y)
-print('default : 상수 only(기울기 없음)')
-print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
-print('='*50)
+score, pvalue, _ = ts.coint(x1,x2)
+print(f'추세 상수 only //  ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
+score, pvalue, _ = ts.coint(x1,x2, trend='ct')
+print(f'추세 상수&기울기 //  ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
+score, pvalue, _ = ts.coint(x1,x2, trend='ctt')
+print(f'추세 상수&기울기(2차) //  ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
+score, pvalue, _ = ts.coint(x1,x2, trend='nc')
+print(f'추세 없음 //  ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
 
-score, pvalue, _ = ts.coint(X,Y, trend='ct')
-print('추세 상수&기울기')
-print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
-print('='*50)
-
-print('추세 상수&기울기(2차)')
-score, pvalue, _ = ts.coint(X,Y, trend='ctt')
-print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
-print('='*50)
-
-print('추세 없음')
-score, pvalue, _ = ts.coint(X,Y, trend='nc')
-print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
-print('='*50)
-
-(Y/X).plot(figsize=(30,10))
-plt.axhline((Y/X).mean(), color='red', linestyle='--')
+(x2/x1).plot(figsize=(30,10))
+plt.axhline((x2/x1).mean(), color='red', linestyle='--')
 plt.xlabel('Time')
 plt.title('collectible / game Ratio')
 plt.legend(['collectible / game Ratio', 'Mean'])
@@ -1213,32 +1202,21 @@ plt.show()
 
 # 공적분 관계 시각화 -> 관계가 있는거야뭐야?
 import statsmodels.tsa.stattools as ts
-X = data['all_average_usd']
-Y = data['all_unique_buyers']
+x1 = data['all_average_usd']
+x2 = data['all_unique_buyers']
 
 # 디폴트 : raw데이터(로그변환/스케일링등 정규화하면 안됨, 특징 사라짐), augmented engle&granger(default), maxlag(none), trend='c'
-score, pvalue, _ = ts.coint(X,Y)
-print('default : 상수 only(기울기 없음)')
-print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
-print('='*50)
+score, pvalue, _ = ts.coint(x1,x2)
+print(f'추세 상수 only //  ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
+score, pvalue, _ = ts.coint(x1,x2, trend='ct')
+print(f'추세 상수&기울기 //  ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
+score, pvalue, _ = ts.coint(x1,x2, trend='ctt')
+print(f'추세 상수&기울기(2차) //  ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
+score, pvalue, _ = ts.coint(x1,x2, trend='nc')
+print(f'추세 없음 //  ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
 
-score, pvalue, _ = ts.coint(X,Y, trend='ct')
-print('추세 상수&기울기')
-print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
-print('='*50)
-
-print('추세 상수&기울기(2차)')
-score, pvalue, _ = ts.coint(X,Y, trend='ctt')
-print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
-print('='*50)
-
-print('추세 없음')
-score, pvalue, _ = ts.coint(X,Y, trend='nc')
-print(f'ADF score={np.round(score, 4)} // coint test p-value={np.round(pvalue, 4)}')
-print('='*50)
-
-(Y/X).plot(figsize=(30,10))
-plt.axhline((Y/X).mean(), color='red', linestyle='--')
+(x2/x1).plot(figsize=(30,10))
+plt.axhline((x2/x1).mean(), color='red', linestyle='--')
 plt.xlabel('Time')
 plt.title('all_buyers / all_avg_usd Ratio')
 plt.legend(['all_buyers / all_avg_usd Ratio', 'Mean'])
