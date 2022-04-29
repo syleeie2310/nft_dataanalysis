@@ -258,10 +258,16 @@ diff_plot(np.log1p(data), 'average_usd', 'acf') #raw df, feature
 # MAGIC - 단위근 : 단위근이란 확률론의 데이터 검정에서 쓰이는 개념으로 시계열 데이터는 시간에 따라 일정한 규칙을 가짐을 가정한다
 # MAGIC 
 # MAGIC #### 1. Augmented Dickey-Fuller("ADF") Test
+# MAGIC - ADF 테스트는 시계열이 안정적(Stationary)인지 여부를 확인하는데 이용되는 방법입니다.
 # MAGIC - 시계열에 단위근이 존재하는지 검정,단위근이 존재하면 정상성 시계열이 아님.
 # MAGIC - 귀무가설이 단위근이 존재한다.
-# MAGIC - adf 작을 수록 귀무가설을 기각시킬 확률이 높다
+# MAGIC - 검증 조건 ( p-value : 5%이내면 reject으로 대체가설 선택됨 )
+# MAGIC - 귀무가설(H0): non-stationary. 대체가설 (H1): stationary.
+# MAGIC - adf 작을 수록 귀무가설을 기각시킬 확률이 높다.
+# MAGIC 
 # MAGIC #### 2. Kwiatkowski-Phillips-Schmidt-Shin (“KPSS”) Test
+# MAGIC - [KPSS 시그니처](https://www.statsmodels.org/dev/generated/statsmodels.tsa.stattools.kpss.html)
+# MAGIC - KPSS 검정은 시계열이 평균 또는 선형 추세 주변에 고정되어 있는지 또는 단위 루트(unit root)로 인해 고정되지 않은지 확인합니다.
 # MAGIC - KPSS 검정은 1종 오류의 발생가능성을 제거한 단위근 검정 방법이다.
 # MAGIC - DF 검정, ADF 검정과 PP 검정의 귀무가설은 단위근이 존재한다는 것이나, KPSS 검정의 귀무가설은 정상 과정 (stationary process)으로 검정 결과의 해석 시 유의할 필요가 있다.
 # MAGIC   - 귀무가설이 단위근이 존재하지 않는다.
@@ -273,25 +279,6 @@ diff_plot(np.log1p(data), 'average_usd', 'acf') #raw df, feature
 
 # MAGIC %md
 # MAGIC #### [함수] ADF 검정
-
-# COMMAND ----------
-
-# adf 검정
-from statsmodels.tsa.stattools import adfuller
-
-def adf_test(data, feature):
-
-    # 피처 분류기 호출
-    col_list = feature_classifier(data, feature)
-    
-    for col in col_list:
-        result = adfuller(data[col].values)
-        print(f'[{col}] ADF Statistics: %f' % result[0])
-        print('p-value: %f' % result[1])
-        print('Critical values:')
-        for key, value in result[4].items():
-            print('\t%s: %.3f' % (key, value))
-        print('='*50)
 
 # COMMAND ----------
 
@@ -312,27 +299,6 @@ def adf_test1(data):
 
 # MAGIC %md
 # MAGIC #### [함수] KPSS 검정
-
-# COMMAND ----------
-
-# KPSS 검정
-from statsmodels.tsa.stattools import kpss
-
-def kpss_test(data, feature):
-    print("Results of KPSS Test:")
-    
-    # 피처 분류기 호출
-    col_list = feature_classifier(data, feature)
-    
-    for col in col_list:
-        result = kpss(data[col].values, regression="c", nlags="auto")
-        print(f'<<{col}>>')
-        kpss_output = pd.Series(
-            result[0:3], index=["KPSS Statistic", "p-value", "Lags Used"] )
-        for key, value in result[3].items():
-            kpss_output["Critical Value (%s)" % key] = value
-        print(kpss_output)
-        print('='*50)
 
 # COMMAND ----------
 
@@ -377,12 +343,12 @@ def URT(data, feature) :
         col_data = data[col]
         
         # ADF검정기 호출
-        adf_result = adf_test1(col_data) 
+        adf_result = adf_test(col_data) 
         adf_stats.append(adf_result[0])
         adf_Pval.append(adf_result[1])
         
         # KPSS검정기 호출
-        kpss_result = kpss_test1(col_data)
+        kpss_result = kpss_test(col_data)
         kpss_stats.append(kpss_result[0])
         kpss_Pval.append(kpss_result[1])
         

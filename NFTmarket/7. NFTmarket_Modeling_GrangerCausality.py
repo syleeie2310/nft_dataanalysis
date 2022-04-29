@@ -1,14 +1,13 @@
 # Databricks notebook source
 import numpy as np
 import pandas as pd
-from statsmodels.tsa.ar_model import AR
-from statsmodels.tsa.stattools import adfuller
 import matplotlib.pyplot as plt
 import seaborn as sb
 from warnings import filterwarnings
 filterwarnings("ignore")
 plt.style.use("ggplot")
 pd.options.display.float_format = '{:.2f}'.format
+pd.set_option('display.precision', 2) # 소수점 글로벌 설정
 
 # COMMAND ----------
 
@@ -33,6 +32,578 @@ data.tail()
 
 # COMMAND ----------
 
+dataW_median = data.resample('W').median()
+dataW_median.tail()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # 제3의 외부 변수 추가
+# MAGIC - 6번CCA노트북에서 다수의 상호지연관계가 확인되어, 그레인저인과검정을 위해 **"제3의 외부변수"**를 추가한다. 
+# MAGIC - 가격 형성 요인으로 외부 이슈(언론, 홍보, 커뮤니티) 요인으로 추정됨
+# MAGIC - 커뮤니티 데이터(ex: nft tweet)를 구하지 못해 포털 검색 데이터(rate, per week)를 대안으로 분석해보자
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 미니 EDA
+# MAGIC - 주단위 수치형 "비율" 데이터
+# MAGIC - 1%미만은 1으로 사전에 변경
+
+# COMMAND ----------
+
+gt_data = pd.read_csv('/dbfs/FileStore/nft/google_trend/nft_googletrend_w_170423_220423.csv', index_col = "Date", parse_dates=True, thousands=',')
+
+# COMMAND ----------
+
+gt_data.tail()
+
+# COMMAND ----------
+
+gt_data.info()
+
+# COMMAND ----------
+
+gt_data.rename(columns={'nft':'nft_gt'}, inplace=True)
+gt_data.describe()
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 미니 시각화
+# MAGIC - 분포 : 1이 77%
+# MAGIC - 추세 : 2021년 1월부터 급등해서 6월까라 급락했다가 22년1월까지 다시 급등 이후 하락세
+# MAGIC - 범위 : 21년도 이후 iqr범위는 10~40, 중위값은 약25, 최대 약 85, 
+
+# COMMAND ----------
+
+plt.figure(figsize=(30,5))
+
+plt.subplot(1, 2, 1)   
+plt.title('<Weekly(%) Distribution>', fontsize=22)
+plt.hist(gt_data['2018':])
+
+plt.subplot(1, 2, 2)   
+plt.title('<Weekly(%) Trend>', fontsize=22)
+plt.plot(gt_data['2018':])
+
+plt.show()
+
+# COMMAND ----------
+
+gt2021 = gt_data['2021':].copy()
+gt2021['index'] = gt2021.index
+gt2021s = gt2021.squeeze()
+gt2021s['monthly']= gt2021s['index'].dt.strftime('%Y-%m')
+gt2021.set_index(keys=gt2021['monthly'])
+
+# COMMAND ----------
+
+ax = gt2021.boxplot(column = 'nft_gt', by='monthly', figsize=(30,5), patch_artist=True)
+ax.get_figure().suptitle('')
+ax.set_xlabel('')
+plt.title('<monthly(%, median) IQR Distribution>', fontsize=22)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 데이터 통합
+
+# COMMAND ----------
+
+# 마켓데이터 주간 집계
+marketW = data['2018':].resample('W').median()
+marketW.tail()
+
+# COMMAND ----------
+
+# gt데이터 길이 인덱스 확인
+gt_data['2018':'2022-02-20'].tail()
+
+# COMMAND ----------
+
+# 주간 데이터 통합
+totalW = pd.merge(marketW, gt_data, left_index=True, right_index=True, how='left')
+totalW.tail()
+
+# COMMAND ----------
+
+# 정규화
+from sklearn.preprocessing import MinMaxScaler
+minmax_scaler = MinMaxScaler()
+totalW_scaled = totalW.copy()
+totalW_scaled.iloc[:,:] = minmax_scaler.fit_transform(totalW_scaled)
+totalW_scaled.describe()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 미니 상관분석
+# MAGIC - 확인결과 raw데이터와 스케일링 정규데이터와 결과 동일, raw데이터로 보면됨, 월간과 주간 차이 없음
+
+# COMMAND ----------
+
+# [함수] 카테고리별 히트맵 생성기
+import plotly.figure_factory as ff
+
+# 카테고리 분류기
+def category_classifier(data, category):
+    col_list = []
+    for i in range(len(data.columns)):
+        if data.columns[i].split('_')[0] == category:
+            col_list.append(data.columns[i])
+        else :
+            pass
+    return col_list
+
+def heatmapC(data, category):
+    # 카테고리 분류기 호출
+    col_list = category_classifier(data, category)
+    col_list.append('nft_gt')
+    
+    # 삼각행렬 데이터 및 mask 생성
+    corr = round(data[col_list].corr(), 2)
+    mask = np.triu(np.ones_like(corr, dtype=bool))
+    # 상부 삼각행렬 생성(np.tilu()은 하부), np.ones_like(bool)와 함께 사용하여 값이 있는 하부삼각행렬은 1(true)를 반환한다.
+    # 하부를 만들면 우측기준으로 생성되기 때문에 왼쪽기준으로 생성되는 상부를 반전한다.
+    df_mask = corr.mask(mask)
+
+    
+    fig = ff.create_annotated_heatmap(z=df_mask.to_numpy(), 
+        x=df_mask.columns.tolist(),
+        y=df_mask.columns.tolist(),
+        colorscale='Blues',
+        hoverinfo="none", #Shows hoverinfo for null values
+        showscale=True,
+        xgap=3, ygap=3, # margin
+        zmin = 0, zmax=1     
+        )
+    
+    fig.update_xaxes(side="bottom") # x축타이틀을 하단으로 이동
+
+    fig.update_layout(
+        title_text='<b>Correlation Matrix (ALL 카테고리 피처간 상관관계)<b>', 
+        title_x=0.5, 
+#         width=1000, height=1000,
+        xaxis_showgrid=False,
+        yaxis_showgrid=False,
+        xaxis_zeroline=False,
+        yaxis_zeroline=False,
+        yaxis_autorange='reversed', # 하단 삼각형으로 변경
+        template='plotly_white'
+    )
+
+    # NaN 값은 출력안되도록 숨기기
+    for i in range(len(fig.layout.annotations)):
+        if fig.layout.annotations[i].text == 'nan':
+            fig.layout.annotations[i].text = ""
+
+    fig.show()
+
+# COMMAND ----------
+
+# 주간 2018년 이후 데이터 : nft_gt도 두루 상관성이 높음(인과분석가능) 
+heatmapC(totalW, 'all')
+
+# COMMAND ----------
+
+# 주간 2021년 이후 데이터 : gt데이터가 급등한 21년도부터 상관성이 분명해짐,  avg_usd의 상관성이 약해졌으나 가격류는 유지됨 
+heatmapC(totalW['2021':], 'all')
+
+# COMMAND ----------
+
+# [함수] 피처별 히트맵 생성기
+import plotly.figure_factory as ff
+
+# 카테고리별 피처 분류기
+def feature_classifier(data, feature):
+    col_list = []
+    for i in range(len(data.columns)):
+        split_col = data.columns[i].split('_', maxsplit=1)[1]
+        if split_col == feature:       
+            col_list.append(data.columns[i])
+        elif split_col == 'all_sales_usd' and feature == 'sales_usd' : #콜렉터블만 sales_usd앞에 all이붙어서 따로 처리해줌
+            col_list.append('collectible_all_sales_usd')
+        else :
+            pass
+    return col_list
+
+def heatmapF(data, feature):
+    # 피처 분류기 호출
+    col_list = feature_classifier(data, feature)
+    col_list.append('nft_gt')
+     # all 카테고리 제외
+#     new_col_list = []
+#     for col in col_list:
+#         if col.split('_')[0] != 'all':
+#             new_col_list.append(col)
+#         else: pass
+    
+    corr = round(data[col_list].corr(), 2)
+        
+    # 삼각행렬 데이터 및 mask 생성
+    mask = np.triu(np.ones_like(corr, dtype=bool))
+    # 상부 삼각행렬 생성(np.tilu()은 하부), np.ones_like(bool)와 함께 사용하여 값이 있는 하부삼각행렬은 1(true)를 반환한다.
+    # 하부를 만들면 우측기준으로 생성되기 때문에 왼쪽기준으로 생성되는 상부를 반전한다.
+   
+    df_mask = corr.mask(mask)
+
+    
+    fig = ff.create_annotated_heatmap(z=df_mask.to_numpy(), 
+        x=df_mask.columns.tolist(),
+        y=df_mask.columns.tolist(),
+        colorscale='Blues',
+        hoverinfo="none", #Shows hoverinfo for null values
+        showscale=True,
+        xgap=3, ygap=3, # margin
+        zmin = 0, zmax=1     
+        )
+    
+    fig.update_xaxes(side="bottom") # x축타이틀을 하단으로 이동
+
+    fig.update_layout(
+        title_text='<b>Correlation Matrix ("average USD"피처, 카테고리간 상관관계)<b>', 
+        title_x=0.5, 
+#         width=1000, height=1000,
+        xaxis_showgrid=False,
+        yaxis_showgrid=False,
+        xaxis_zeroline=False,
+        yaxis_zeroline=False,
+        yaxis_autorange='reversed', # 하단 삼각형으로 변경
+        template='plotly_white'
+    )
+
+    # NaN 값은 출력안되도록 숨기기
+    for i in range(len(fig.layout.annotations)):
+        if fig.layout.annotations[i].text == 'nan':
+            fig.layout.annotations[i].text = ""
+
+    fig.show()
+    
+
+# COMMAND ----------
+
+# 주간 2018년 이후 데이터 : utility제외하고 gt와 대체로 상관관계가 높음(collectible가 가장 높음)  하지만 nft_gt데이터가 2018~2020까지 모두 1이라서 어뷰징이 있음
+heatmapF(totalW, 'average_usd')
+
+# COMMAND ----------
+
+# 주간 2021년 이후 데이터 : nft검색량이 급등한 21년도부터 차이가 분명하다, utility의 상관성이 다시 높아진것에 반면 defi는 낮아짐.
+# nft_gt기준 metaverse, collectible, art 순으로 상관성이 가장 높다.
+heatmapF(totalW['2021':], 'average_usd')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### 상관분석 결과
+# MAGIC - 21년도 이후부터 분석하면 될듯
+# MAGIC ---
+# MAGIC ##### all카테고리, 피처별 상관관계
+# MAGIC - 주간 2021년 이후 데이터 : gt데이터가 급등한 21년도부터 상관성이 분명해짐,  avg_usd의 상관성이 약해졌으나 가격류는 유지됨
+# MAGIC - **분석 피처 셀렉션 : 총매출, 총판매수, 총사용자수, 총평균가**
+# MAGIC   - 상관성이 높고 시장흐름을 이해할 수 있는 주요 피처를 선정
+# MAGIC ---
+# MAGIC ##### avgusd피처, 카테고리별 상관관계
+# MAGIC - 주간 2021년 이후 데이터 : nft검색량이 급등한 21년도부터 차이가 분명하다, utility의 상관성이 다시 높아진것에 반면 defi는 낮아짐. nft_gt기준 metaverse, collectible, art 순으로 상관성이 가장 높다.
+# MAGIC - **분석 피처 셀렉션 : metaverse, collectible, art, game**
+# MAGIC   - 위에서 선정한 주요피처중에 가장 상관성이 낮아 해석이 용이할 것으로 추정되는 avgusd를 기준으로 다시 상관성과 매출 비중이 높은 주요 카테고리로 선정한다.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 시차상관분석
+
+# COMMAND ----------
+
+#  시차상관계수 계산함수
+def TLCC_comparison(X1, X2, start_lag, end_lag):
+    result=[]
+    laglist = []
+    for i in range(start_lag, end_lag+1):
+        result.append(X1.corr(X2.shift(i)))
+        laglist.append(i)
+    return laglist, np.round(result, 4)
+
+# COMMAND ----------
+
+# 차트 함수
+def TLCC_comparison_table(data, x1, x2, startlag, endlag): # 데이터, 기준변수, 비교변수, startlag, endlag
+    x2list = x2.copy()
+    x2list.remove(x1)  # 입력한 변수에서 삭제되기때문에 사전 카피필요
+    x2_list = [x1, *x2list]
+    x1_list = []
+    tlcc_list = []
+    lag_var_list= []
+    lvar_tlcc_list=[]
+    sd_list = []
+    rsd_list = []
+    
+    # x2별 lag, tlcc값 받아오기
+    for i in range(len(x2_list)): 
+        x2data = data[x2_list[i]]
+        lag_list,  result = TLCC_comparison(data[x1], x2data, startlag, endlag) 
+        tlcc_list.append(result)
+        sd_list.append(np.std(x2data))   # =stdev(범위)
+        rsd_list.append(np.std(x2data)/np.mean(x2data)*100)  # RSD = stdev(범위)/average(범위)*100, 
+        # RSD(상대표준편차) or CV(변동계수) : 똑같은 방법으로 얻은 데이터들이 서로 얼마나 잘 일치하느냐 하는 정도를 가리키는 정밀도를 나타내는 성능계수, 값이 작을 수록 정밀하다.
+        x1_list.append(x1)
+        
+    # 데이터프레임용 데이터 만들기
+    temp = tlcc_list.copy()
+    dfdata = list(zip(x1_list, x2_list, sd_list, rsd_list, *list(zip(*temp)))) # temp..array를 zip할수 있도록 풀어줘야함..
+    
+    # 데이터프레임용 칼럼명 리스트 만들기
+    column_list = ['X1변수', 'X2변수', 'X2표준편차', 'X2상대표준편차', *lag_list]  
+
+    result_df = pd.DataFrame(data=dfdata, columns= column_list,)
+
+    return result_df
+
+# COMMAND ----------
+
+# 판다스 스타일의 천의자리 구분은 1.3 부터 지원함
+# pd.__version__ #  pip install --upgrade pandas==1.3  # import pandas as pd
+
+# 데이터프레임 비주얼라이제이션 함수
+def visualDF(dataframe):
+#     pd.set_option('display.precision', 2) # 소수점 글로벌 설정
+    pd.set_option('display.float_format',  '{:.2f}'.format)
+    dataframe = dataframe.style.bar(subset=['X2표준편차','X2상대표준편차'])\
+    .background_gradient(subset=[*dataframe.columns[4:]], cmap='Blues', vmin = 0.5, vmax = 0.9)\
+    .set_caption(f"<b><<< X1변수({dataframe['X1변수'][0]})기준 X2의 시차상관계수'>>><b>")\
+    .format(thousands=',')\
+    .set_properties(
+        **{'border': '1px black solid !important'})
+    return dataframe
+
+# COMMAND ----------
+
+# nft_gt와 시차상관분석을 위한 피처리스트 -> 동일한 레벨끼리 교차분석하자.
+all_flist = ['nft_gt',  'all_sales_usd',  'all_number_of_sales',  'all_active_market_wallets', 'all_average_usd']# 총매출, 총판매수, 총사용자수, 총평균가
+avgusd_clist = ['nft_gt', 'game_average_usd', 'collectible_average_usd',  'art_average_usd', 'metaverse_average_usd'] # metaverse, collectible, art, game
+
+# COMMAND ----------
+
+# 주간 18년도 이후 데이터 기준
+print(f"<<<X1기준 X2의 변동폭 및 시차상관계수 테이블>>>")
+all_flist_result = TLCC_comparison_table(totalW, 'nft_gt', all_flist, -12, 12)
+all_flist_result 
+
+# COMMAND ----------
+
+visualDF(all_flist_result)
+
+# COMMAND ----------
+
+# 주간 21년도 이후 데이터 기준
+print(f"<<<X1기준 X2의 변동폭 및 시차상관계수 테이블>>>")
+all_flist_result = TLCC_comparison_table(totalW['2021':], 'nft_gt', all_flist, -12, 12)
+all_flist_result 
+
+# COMMAND ----------
+
+visualDF(all_flist_result)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##### all_flist 결과(2021년 이후 주간기준)
+# MAGIC - 정규화 전후결과 유사함, 앞으로 안봐도 될듯, 18년도는 티가 안나서 보기 어렵다. 21년도만 봐도 될듯.
+# MAGIC - RSD(상대표준편차, 변동성CV)는 판매수와 평균가가 상대적으로 낮은 편
+# MAGIC - nft_gt의 자기상관성은 12주 전후 모두 높은편.
+# MAGIC - 매출은 12주 전후 모두 시차상관성이 높은데 그중 양수가 상대적으로 더 높다.
+# MAGIC   - 상호지연관계가 있으면서 동시에 X1의 선행역향력이 더 크다 gt <->> 매출
+# MAGIC - 판매수 역시 12주 전후 모두 시차상관선이 높지만, 상대적으로 음수가 더 높다.
+# MAGIC   - 상호지연관계가 있으면서 동시에 X2의 선행영향력이 더 크다 gt <<-> 판매수
+# MAGIC - 사용자수도 위와 상동, gt <<-> 사용자수
+# MAGIC - 평균가는 분명하게 양수가 높은 것으로 보다 편지연관계로서 X1의 선행영향력만 존재한다. gt -> 평균가
+# MAGIC - 특이사항 : 판매수와 사용자수는 5~8주 지점에서 소폭 감소하는 경향이 있다. 또다른 제3의 존재가 있는 듯(일단 pass)
+
+# COMMAND ----------
+
+# 주간 18년도 이후 데이터 기준
+print(f"<<<X1기준 X2의 변동폭 및 시차상관계수 테이블>>>")
+avgusd_clist_result = TLCC_comparison_table(totalW, 'nft_gt', avgusd_clist, -12, 12)
+avgusd_clist_result 
+
+# COMMAND ----------
+
+visualDF(avgusd_clist_result)
+
+# COMMAND ----------
+
+# 주간 21년도 이후 데이터 기준
+print(f"<<<X1기준 X2의 변동폭 및 시차상관계수 테이블>>>")
+avgusd_clist_result = TLCC_comparison_table(totalW['2021':], 'nft_gt', avgusd_clist, -12, 12)
+avgusd_clist_result 
+
+# COMMAND ----------
+
+visualDF(avgusd_clist_result)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##### avgusd_clist 결과(2021년 이후 주간기준)
+# MAGIC - 정규화 전후결과 유사함, 앞으로 안봐도 될듯, 18년도는 티가 안나서 보기 어렵다. 21년도만 봐도 될듯.
+# MAGIC - RSD(상대표준편차, 변동성CV)는 game과 art가 상대적으로 낮은 편
+# MAGIC - nft_gt의 자기상관성은 12주 전후 모두 높은편.
+# MAGIC - game은 분명하게 양수가 높은 것으로 보아 편지연관계로서 X1의 선행영향력만 존재한다. gt -> game
+# MAGIC - collectible은 12주 전후 모두 시차상관성이 높은데 그중 양수가 상대적으로 더 높다.
+# MAGIC   - 상호지연관계이면서, 동시에 X1의 선행역향력이 더 크다 gt <->> collectible
+# MAGIC - art 역시 전후 시차상관성이 존재하지만, 음수는 06부터 높으며 상대적으로 양수가 매우 높다.
+# MAGIC   - 상호지연관계이면서, 동시에 X1의 선행영향력이 더 크고 긴데 반해 **X2의 선행영향력은비교적 짧다.** gt <->> art
+# MAGIC - metaverse 역시 12주 전후 모두 시차상관성이 높은데, 그중 음수가 상대적으로 더 높다.
+# MAGIC   - 상호지연관계이면서, 동시에 X2의 선행영향력이 더 크다 길다.  **X1의 선행영향력은비교적 짧다.** gt <<-> metaverse
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 공적분 검정
+# MAGIC - 앵글&그레인저, 주간데이터
+
+# COMMAND ----------
+
+print(len(all_flist), len(avgusd_clist))
+
+# COMMAND ----------
+
+for i in range(len(all_flist)):
+    print(i, i/2, i%2+1, i//2)
+
+# COMMAND ----------
+
+# 장기적 관계 시각화를 위한 X2/X1 비율 그래프
+
+def x1x2plot(data, x1, x2list):
+
+    plt.figure(figsize=(30,10))
+
+    ncols = len(x2list)//2
+    nrows = ncols+1
+    plt.suptitle('X2 / X1 Rate Line Plot', fontsize=40 )
+    for i in range(len(x2list)):
+        x2 = x2list[i]
+        xrate = data[x2]/data[x1]
+        
+        plt.subplot(nrows, ncols, i+1)
+        plt.plot(xrate)
+        plt.axhline(xrate.mean(), color='red', linestyle='--')
+        plt.title(f' [{i}] {x2} / {x1} Ratio', fontsize=22)
+        plt.legend(f'[{i}] {x2} / {x1} Ratio', 'Mean')
+        
+    plt.tight_layout(h_pad=5, w_pad=5)
+    plt.show()
+
+# COMMAND ----------
+
+# 기준이 될 nft_gt 추세 참고
+totalW['nft_gt'].plot(figsize=(30,7))
+
+# COMMAND ----------
+
+# 21년도 이후를 보면 조금씩 연관성이 있어보인다. 직접 검정해보자.
+x1x2plot(totalW, 'nft_gt', all_flist[1:])
+
+# COMMAND ----------
+
+# 공적분 검정 테이블 함수
+import statsmodels.tsa.stattools as ts
+def URT(data, x1, x2list, Trend):
+   
+    Coint_ADF_score = []
+    Coint_ADF_Pval = []
+    result = []
+    x1list = []
+    
+    for x2 in x2list:
+        x2data = data[x2]
+        score, pvalue, _ = ts.coint(data[x1], x2data, trend = Trend)
+        Coint_ADF_score.append(score)
+        Coint_ADF_Pval.append(pvalue)
+    
+        if pvalue <= 0.05 :
+            result.append('pass, go to VECM')
+        else :
+            result.append('fail, go to VAR')
+            
+        x1list.append(x1)
+        
+    result = pd.DataFrame(list(zip(x1list, x2list, Coint_ADF_score, Coint_ADF_Pval, result)), columns=[ 'x1', 'x2', 'Coint_ADF_score', 'Coint_ADF_Pval', 'Coint_result'])
+    
+    return result          
+
+# COMMAND ----------
+
+# 위 그래프를 볼때 2차 기울기 추세임을 알 수 있다. CTT
+# 2018년도 이후 주간데이터 기준, avgusd외에 모두 nft_gt와 장기적 연관성이 있다.
+URT(totalW, 'nft_gt', all_flist[1:], 'ctt') # trend : C(상수), CT(상수&기울기), CTT(상수&기울기2차), NC(추세없음)
+
+# COMMAND ----------
+
+# 2021년도 이후 주간데이터 기준, nftgt와 모두 장기적 연관성이 없다. -> 기간이 너무 짧은 듯, nft_gt검색량이 급등 전후의 데이터가 충분히 반영되지 않은 듯
+URT(totalW['2021'], 'nft_gt', all_flist[1:], 'ctt') # trend : C(상수), CT(상수&기울기), CTT(상수&기울기2차), NC(추세없음)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##### all_flist 결과(CTT기준)
+# MAGIC - 2018년도 이후 : 매출, 판매수, 사용자수 모두 장기적 연관성이 있다.
+# MAGIC - 2021년도 이후 : 모두 없음
+
+# COMMAND ----------
+
+# 21년도 이후를 보면 1번 2번이 있어보인다. 직접 검정해보자.
+x1x2plot(totalW, 'nft_gt', avgusd_clist[1:])
+
+# COMMAND ----------
+
+# 위 그래프를 볼때 2차 기울기 추세임을 알 수 있다. CTT
+# 2018년도 이후 주간데이터 기준, art외에 모두 nft_gt와 장기적 연관성이 있다.
+URT(totalW, 'nft_gt', avgusd_clist[1:], 'ctt') # trend : C(상수), CT(상수&기울기), CTT(상수&기울기2차), NC(추세없음)
+
+# COMMAND ----------
+
+# 2021년도 이후 주간데이터 기준, 모두 없음
+URT(totalW['2021':], 'nft_gt', avgusd_clist[1:], 'ctt') # trend : C(상수), CT(상수&기울기), CTT(상수&기울기2차), NC(추세없음)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##### all_flist 결과(CTT기준)
+# MAGIC - 2018년도 이후 : game, collectible, metaverse 모두 장기적 연관성이 있다. (art도 있긴하다. pval값이 조금 아쉬움)
+# MAGIC - 2021년도 이후 : 모두 없음
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 상관분석결과 종합
+# MAGIC #### 상관분석
+# MAGIC - nft_18년도 이후부터 마켓변수들과 모두 상관성이 있는데, 그중 본격적으로 검색량이 발생하는 21년도부터 각 마켓변수들과의 상관성이 분명함,
+# MAGIC   - all카테고리, 세일즈피처별 상관관계 : 분석용 변수 1차 셀렉션 (총매출, 총판매수, 총사용자수, 총평균가)
+# MAGIC   - avgusd피처, 카테고리별 상관관계 : 분석용 변수 1차 셀렉션 (metaverse, collectible, art, game)
+# MAGIC  
+# MAGIC #### 시차상관분석
+# MAGIC - 위와 동일하게 21년도 기준 상관성이 분명하게 드러남
+# MAGIC - nft_gt와 기존 마켓변수들과 시차상관성을 확인, 상호지연관계로 또다른 제3의 변수가 있지만 시간관계상 pass
+# MAGIC - 공적분 검정을 통해 셀렉션한 피처들을 좀더 줄여보자
+# MAGIC 
+# MAGIC #### 공적분 검정
+# MAGIC - 이 경우는 오히려 2018년도까지 포함해야 장기적 관계를 확인할 수 있다.(검색량 유, 무 정보를 모두 포함하기 때문)
+# MAGIC   - all카테고리, 세일즈피처별 공적분 검정 : 평균가는 장기적 관계 없음
+# MAGIC   - avgusd피처, 카테고리별 공적분 검정 : art의 pval값이 근소함을 고려시 모두 장기적관계가 있다.
+# MAGIC ---
+# MAGIC #### 그레인저 인과검정을 위한 최종 피처 셀렉션
+# MAGIC - 외부 변수 : nft 구글 검색량
+# MAGIC - all카테고리, 세일즈 변수 :   총매출, 총판매수, 총사용자수
+# MAGIC - avgusd피처, 카테고리별 변수 : metaverse(포함해주자), collectible, art, game
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC # 그레인저 인과검정(Granger Causality)
 # MAGIC - 개념 : 동일한 시간축의 범위를 가진 두 데이터가 있을 때 한 데이터를 다른 한쪽의 데이터의 특정한 시간간격에 대해서 선형회귀를 할 수 있다면 그래인저 인과가 있다고 하는 것이다.
@@ -54,17 +625,23 @@ data.tail()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 정상성 시차 찾기
-# MAGIC - 통계적 가설 검정(Unit root test:단위근검정)
-# MAGIC - 단위근 : 단위근이란 확률론의 데이터 검정에서 쓰이는 개념으로 시계열 데이터는 시간에 따라 일정한 규칙을 가짐을 가정한다
-# MAGIC 
+# MAGIC ## 정상성 검정
+# MAGIC ### 2번 노트북(TSA)에서 전체 변수들 모두 정상성 시차 1을 확인
+# MAGIC - 데이터 : 주간 (일/주/월 결과 모두 다름, 외부변수와 함께 비교하려면 주간통일이 편함), 정규화 안함(데이터 특징 우려, )
+# MAGIC - 대표칼럼 : avgusd 피처, 카테고리별 검정
+# MAGIC - 대표칼럼 : all카테고리, 피처별 검정
+# MAGIC ---
 # MAGIC #### 1. Augmented Dickey-Fuller("ADF") Test
+# MAGIC - ADF 테스트는 시계열이 안정적(Stationary)인지 여부를 확인하는데 이용되는 방법입니다.
 # MAGIC - 시계열에 단위근이 존재하는지 검정,단위근이 존재하면 정상성 시계열이 아님.
 # MAGIC - 귀무가설이 단위근이 존재한다.
 # MAGIC - 검증 조건 ( p-value : 5%이내면 reject으로 대체가설 선택됨 )
 # MAGIC - 귀무가설(H0): non-stationary. 대체가설 (H1): stationary.
-# MAGIC - adf 작을 수록 귀무가설을 기각시킬 확률이 높다
+# MAGIC - adf 작을 수록 귀무가설을 기각시킬 확률이 높다.
+# MAGIC 
 # MAGIC #### 2. Kwiatkowski-Phillips-Schmidt-Shin (“KPSS”) Test
+# MAGIC - [KPSS 시그니처](https://www.statsmodels.org/dev/generated/statsmodels.tsa.stattools.kpss.html)
+# MAGIC - KPSS 검정은 시계열이 평균 또는 선형 추세 주변에 고정되어 있는지 또는 단위 루트(unit root)로 인해 고정되지 않은지 확인합니다.
 # MAGIC - KPSS 검정은 1종 오류의 발생가능성을 제거한 단위근 검정 방법이다.
 # MAGIC - DF 검정, ADF 검정과 PP 검정의 귀무가설은 단위근이 존재한다는 것이나, KPSS 검정의 귀무가설은 정상 과정 (stationary process)으로 검정 결과의 해석 시 유의할 필요가 있다.
 # MAGIC   - 귀무가설이 단위근이 존재하지 않는다.
@@ -74,107 +651,263 @@ data.tail()
 
 # COMMAND ----------
 
-#  시차상관계수 계산함수 (coint는 앵글&그레인저 기반으로 pvalue는 adf단위근 검정)
-def adf_lag(X, Y, start_lag, end_lag):
-    pvalue=[]
-    for i in range(start_lag, end_lag+1):
-        _, p, _ = ts.coint(X,Y.shift(i, fill_value=0))
-        pvalue.append(p)
-    return pvalue
+# 피처 분류기
+def feature_classifier(data, feature):
+    col_list = []
+    for i in range(len(data.columns)):
+        split_col = data.columns[i].split('_', maxsplit=1)[1]
+        if split_col == feature:       
+            col_list.append(data.columns[i])
+        elif split_col == 'all_sales_usd' and feature == 'sales_usd' : #콜렉터블만 sales_usd앞에 all이붙어서 따로 처리해줌
+            col_list.append('collectible_all_sales_usd')
+        else :
+            pass
+    return col_list
 
-def kpss_lag(X, Y, start_lag, end_lag):
-    pvalue=[]
-    for i in range(start_lag, end_lag+1):
-        stats, p, lag, _ = kpss(X, regression="ct", nlags=i)
-        pvalue.append(p)
-    return pvalue
+# 카테고리 분류기
+def category_classifier(data, category):
+    col_list = []
+    for i in range(len(data.columns)):
+        if data.columns[i].split('_')[0] == category:
+            col_list.append(data.columns[i])
+        else :
+            pass
+    return col_list
+
+# COMMAND ----------
+
+# adf 검정
+from statsmodels.tsa.stattools import adfuller
+
+def adf_test(data):
+#     print("Results of ADF Test")
+    result = adfuller(data)
+#     print('ADF Statistics: %f' % result[0])
+#     print('p-value: %f' % result[1])
+    return result
+#     print('Critical values:')
+#     for key, value in result[4].items():
+#         print('\t%s: %.3f' % (key, value))
+
+# COMMAND ----------
+
+# KPSS 검정
+from statsmodels.tsa.stattools import kpss
+
+def kpss_test(data):
+#     print("Results of KPSS Test")
+    result = kpss(data, regression="c", nlags="auto")
+    kpss_output = pd.Series(
+        result[0:3], index=["KPSS Statistic", "p-value", "Lags Used"] )
+#     for key, value in result[3].items():
+#         kpss_output["Critical Value (%s)" % key] = value
+#     print(kpss_output[:1])   
+    
+#     print('KPSS Statistics: %f' % kpss_output[0])
+#     print('p-value: %f' % kpss_output[1])
+    return kpss_output
+
+
+# COMMAND ----------
+
+# 단위근 검정 실행기
+pd.options.display.float_format = '{: .4f}'.format
+
+def URT(data, col, dataclass) :
+    # 칼럼 분류기 호출
+    if dataclass == 'feature':
+        col_list = feature_classifier(data, col)
+    elif dataclass == 'category':
+        col_list = category_classifier(data, col)
+    else :
+        print('분류기 조건을 확인하세요')
+        
+    col_list.append('nft_gt')
+        
+    adf_stats = []
+    adf_Pval = []
+    kpss_stats = []
+    kpss_Pval = []
+    total_list = []
+    
+    for col in col_list:
+#         print(f'<<<<{col}>>>>')
+        col_data = data[col]
+        
+        # ADF검정기 호출
+        adf_result = adf_test(col_data) 
+        adf_stats.append(adf_result[0])
+        adf_Pval.append(adf_result[1])
+        
+        # KPSS검정기 호출
+        kpss_result = kpss_test(col_data)
+        kpss_stats.append(kpss_result[0])
+        kpss_Pval.append(kpss_result[1])
+        
+        # 종합
+        if adf_result[1] <= 0.05 and kpss_result[1] >= 0.05:
+            total_list.append('ALL Pass')
+        elif adf_result[1] <= 0.05 or kpss_result[1] >= 0.05:
+            total_list.append('One Pass')
+        else :
+            total_list.append('fail')
+        
+    # 테이블 생성
+#     col_list.append('total')
+    result_df = pd.DataFrame(list(zip(adf_stats, adf_Pval, kpss_stats, kpss_Pval, total_list)), index = col_list, columns=['adf_stats', 'adf_Pval', 'KPSS_stats', 'KPSS_Pval', 'total'])
+    
+#     # adf stats가 낮은 순으로 정렬
+#     result_df.sort_values(sort, inplace=True)
+    
+    return result_df             
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### collectible_avgusd & game_avgusd
-# MAGIC - 그레인저인과검정과 비교할 수 있도록 lag를 15로 잡자
-# MAGIC - KPSS기준 최대 11개월까지 상호지연관계 "정상성" 있음, cg 11, gc12
+# MAGIC ### avgusd피처, 카테고리별 검정
+# MAGIC -
 
 # COMMAND ----------
 
-xcol = 'collectible_average_usd'
-ycol = 'game_average_usd'
-X = dataM_median[xcol]['2018':]
-Y = dataM_median[ycol]['2018':]
+dataW_diff = dataW_median.diff(periods=1).dropna()
 
-startlag = -15
-endlag = 15
-# adf_pval = adf_lag(X,Y, startlag, endlag)
-# kpss_pval = kpss_lag(X,Y, startlag, endlag)
+# COMMAND ----------
 
-fig = plt.figure(figsize=(30,10))
-plt.suptitle("lag difference sationary check <ADF & KPSS>", fontsize=30)
-
-plt.subplot(2, 1, 1)   
-plt.title('<ADF pvalue>', fontsize=22)
-plt.plot(range(startlag, endlag+1), adf_lag(X,Y, startlag, endlag), label = f'{xcol} -> {ycol}')
-plt.plot(range(startlag, endlag+1), adf_lag(Y,X, startlag, endlag), label = f'{ycol} -> {xcol}')
-plt.legend(loc='center left')
-plt.hlines(0.05, xmin=startlag, xmax=endlag, color='blue')
-
-plt.subplot(2, 1, 2)
-plt.title('<KPSS pvalue>', fontsize=22)
-plt.plot(range(startlag, endlag+1), kpss_lag(X,Y, startlag, endlag), label = f'{xcol} -> {ycol}')
-plt.plot(range(startlag, endlag+1), kpss_lag(Y,X, startlag, endlag), label = f'{ycol} -> {xcol}')
-plt.legend(loc='center left')
-plt.hlines(0.05, xmin=startlag, xmax=endlag, color='blue')
-
-plt.show()
+# 로그 차분 데이터, 서로 다른 변수의 회귀결과에 대한 분석을하려면 정규화가 필요하다. 
+logdata = np.log1p(data)
+logdiff = logdata.diff(periods=1).dropna()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### all_avgusd & all_buyers
-# MAGIC - 그레인저인과검정과 비교할 수 있도록 lag를 15로 잡자
-# MAGIC - KPSS기준 최대 12개월까지 상호지연관계 "정상성" 있음, ub12, bu15
+# MAGIC #### [Raw + 주간]
+# MAGIC -
 
 # COMMAND ----------
 
-xcol = 'all_average_usd'
-ycol = 'all_unique_buyers'
-X = dataM_median[xcol]
-Y = dataM_median[ycol]
+# 로그차분 + 주간중앙 + 전체기간
+URT(dataW_diff, 'average_usd', 'feature')
 
-startlag = -15
-endlag = 15
-# adf_pval = adf_lag(X,Y, startlag, endlag)
-# kpss_pval = kpss_lag(X,Y, startlag, endlag)
+# COMMAND ----------
 
-fig = plt.figure(figsize=(30,10))
-plt.suptitle("lag difference sationary check <ADF & KPSS>", fontsize=30)
+# MAGIC %md
+# MAGIC #### [Log + 주간]
+# MAGIC - 
 
-plt.subplot(2, 1, 1)   
-plt.title('<ADF pvalue>', fontsize=22)
-plt.plot(range(startlag, endlag+1), adf_lag(X,Y, startlag, endlag), label = f'{xcol} -> {ycol}')
-plt.plot(range(startlag, endlag+1), adf_lag(Y,X, startlag, endlag), label = f'{ycol} -> {xcol}')
-plt.legend(loc='center left')
-plt.hlines(0.05, xmin=startlag, xmax=endlag, color='blue')
+# COMMAND ----------
 
-plt.subplot(2, 1, 2)
-plt.title('<KPSS pvalue>', fontsize=22)
-plt.plot(range(startlag, endlag+1), kpss_lag(X,Y, startlag, endlag), label = f'{xcol} -> {ycol}')
-plt.plot(range(startlag, endlag+1), kpss_lag(Y,X, startlag, endlag), label = f'{ycol} -> {xcol}')
-plt.legend(loc='center left')
-plt.hlines(0.05, xmin=startlag, xmax=endlag, color='blue')
 
-plt.show()
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# 로그차분 + 주간중앙 + 18년 이후
+URT(dataW_diff['2018':], 'average_usd', 'feature')
+
+# COMMAND ----------
+
+# 로그차분 + 주간중앙 + 21년 이후
+URT(dataW_diff['2021':], 'average_usd', 'feature')
+
+# COMMAND ----------
+
+URT(totalW.diff(periods=1).dropna(), 'average_usd', 'feature')
+
+# COMMAND ----------
+
+URT(totalW['2021':].diff(periods=1).dropna(), 'average_usd', 'feature')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### ALL카테고리, 피처별 검정
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### [주간 기간별 결과]
+# MAGIC - avgusd가 정상성이 있다. -> 전체기간을 보려면 avgusd간의 인과분석을 해보자
+# MAGIC - 21년도만 볼거면 실패한 피처들은 참고하고 분석해야함
+
+# COMMAND ----------
+
+# 주간중앙 + 차분 + 전체기간
+URT(dataW_diff, 'all', 'category')
+
+# COMMAND ----------
+
+# 주간중앙 + 차분 + 18~ 
+URT(dataW_diff['2018':], 'all', 'category')
+
+# COMMAND ----------
+
+# 주간중앙+ 차분 + 21~ 
+URT(dataW_diff['2021':], 'all', 'category')
+
+# COMMAND ----------
+
+URT(totalW.diff(periods=1).dropna(), 'all', 'category')
+
+# COMMAND ----------
+
+URT(totalW['2021':].diff(periods=1).dropna(), 'all', 'category')
+
+# COMMAND ----------
+
+카테고리내 피처들은 21년도부터 정상성을 찾음
+avgusd는 전체기간 정상성을 가짐.. 한결같다고나 할까..
+
+카테고리내 피처들과 비교하려면 2021년도 기준으로 분석해야한다.
+
+이것 끼리 진행하고.
+
+1. all카테고리, 주간 , 21년도기준
+'사용자수, 구글트랜드, 판매단가, 판매수, 총매출'
+
+2. avgusd, 주간, 21년도 기준
+'all, art, collectible, game, nft_gt'
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### [결과 종합 ]
+# MAGIC - avgusd피처집단과 all카테고리집단들이 모두 검정이 통과한 조건은 **<일간 전체, 일간 18년 이후>** 이다
+# MAGIC - 일단 **<일간 + 2018년도 이후>**로 인과검정 진행해보자 
+# MAGIC ---
+# MAGIC 
+# MAGIC #### avgusd피처, 카테고리별 정상성 검정
+# MAGIC   - 일간 통과 : 전체, 18년 이후, 21년 이후
+# MAGIC   - 주간 통과 : 전체 기간 only
+# MAGIC   - 월간 통과 : 21년이후 기간 only
+# MAGIC 
+# MAGIC #### all카테고리, 피처별 정상성 검정
+# MAGIC   - 일간 통과 : 전체, 18년 이후
+# MAGIC   - 주간 통과 : 3개 기간 모두 불통
+# MAGIC   - 월간 통과 : 3개 기간 모두 불통
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 그레인저 인과분석
 # MAGIC - 딕셔너리 언패킹을 못해서 시각화못함
-# MAGIC - **정상성시차 : 최대 cg11, gc12 ub12, bu15**
 # MAGIC - from statsmodels.tsa.stattools import grangercausalitytests [signature](https://www.statsmodels.org/dev/generated/statsmodels.tsa.stattools.grangercausalitytests.html)
 # MAGIC   - 2개 시계열의 그랜저 비인과성에 대한 4가지 테스트.
-# MAGIC   - 2번째 시계열이 1번째 시계열을 유발하는지 테스트(2->1)
-# MAGIC   - maxlag = 15가 최대
+# MAGIC   - 현재 일간데이터 길이 기준 maxlag = 15가 최대
+# MAGIC   - 2번째 시계열이 1번째 시계열을 유발하는지 테스트(2->1) -> 즉 2번째열이 시차 보행하는 것
+# MAGIC     - 그런데 lag를 양수만 입력가능하므로, 이는 X2의 과거lag값임.
+# MAGIC     - 결국 X2의 t가 -n일 때의 X1회귀값의 pvalue, 즉, X2의 과거가 x1의 현재값을 통계적으로 유의미하게를 예측할 수 있는지를 본다
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 일간+18년이후
 
 # COMMAND ----------
 
@@ -182,27 +915,21 @@ from statsmodels.tsa.stattools import grangercausalitytests
 
 # COMMAND ----------
 
-# collectible -> game, 6~15까지 귀무가설 기각하여 collectible로 game을 예측 할 수 있음
+# collectible -> game, X2 lag 1~2까지 귀무가설 기각
 from statsmodels.tsa.stattools import grangercausalitytests
-grangercausalitytests(data[['game_average_usd', 'collectible_average_usd']]['2018':], maxlag=15)
+grangercausalitytests(data[['game_average_usd', 'collectible_average_usd']]['2018':].diff(periods=1).dropna(), maxlag=15)
 
 # COMMAND ----------
 
-# collectible -> game, 6~15까지 귀무가설 기각하여 collectible로 game을 예측 할 수 있음
-from statsmodels.tsa.stattools import grangercausalitytests
-grangercausalitytests(dataM_median[['game_average_usd', 'collectible_average_usd']]['2018':], maxlag=15)
-
-# COMMAND ----------
-
-#  game -> collectible, 1~10까지 귀무가설기각하여 game으로 collectible을 예측할 수 있음
-grangercausalitytests(dataM_median[['collectible_average_usd', 'game_average_usd']]['2018':], maxlag=15)
+#  game -> collectible, x2 lag 1~15까지 귀무가설기각
+grangercausalitytests(data[['collectible_average_usd', 'game_average_usd']]['2018':], maxlag=15)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### collectible_avgusd & game_avgusd
-# MAGIC - ***정상성 시차 : 최대 cg11, gc12***
-# MAGIC - ***그레인저인과 시차 : cg 6 ~ 15, gc1 ~ 10***
+# MAGIC - ***정상성 시차 : 1
+# MAGIC - ***그레인저인과 시차 : cg 1 ~ 2, gc1 ~ 15***
 # MAGIC - ***pvalue 기준***
 # MAGIC   - collectible이 game을 6 ~ 11개월 선행한다. 
 # MAGIC   - game이 collectible을 1 ~ 10개월 선행한다. 
@@ -218,7 +945,7 @@ grangercausalitytests(dataM_median[['collectible_average_usd', 'game_average_usd
 # COMMAND ----------
 
 # buyer -> avgusd, 2~15까지 귀무가설 기각하여 buyer로 avgusd를 예측 할 수 있음
-grangercausalitytests(dataM_median[['all_average_usd', 'all_unique_buyers']], maxlag=15)
+grangercausalitytests(data[['all_average_usd', 'all_unique_buyers']]['2018':].diff(periods=1).dropna(), maxlag=15)
 
 # COMMAND ----------
 
@@ -323,409 +1050,7 @@ grangercausalitytests(dataM_median[['game_average_usd', 'all_unique_buyers']]['2
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### 제3의 외부 변수 추가
-# MAGIC - 가격 형성 요인으로 외부 이슈(언론, 홍보, 커뮤니티) 요인으로 추정됨
-# MAGIC - 커뮤니티 데이터(ex: nft tweet)를 구하지 못해 포털 검색 데이터(rate, per week)를 대안으로 분석해보자
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 미니 EDA
-# MAGIC - 주단위 수치형 "비율" 데이터
-# MAGIC - 1%미만은 1으로 사전에 변경
-
-# COMMAND ----------
-
-gtkwd_data = pd.read_csv('/dbfs/FileStore/nft/google_trend/nft_googletrend_w_170423_220423.csv', index_col = "Date", parse_dates=True, thousands=',')
-
-# COMMAND ----------
-
-gtkwd_data.info()
-
-# COMMAND ----------
-
-gtkwd_data.rename(columns={'nft':'nft_gt'}, inplace=True)
-gtkwd_data.describe()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 미니 시각화
-# MAGIC - 분포 : 1이 77%
-# MAGIC - 추세 : 2021년 1월부터 급등해서 6월까라 급락했다가 22년1월까지 다시 급등 이후 하락세
-# MAGIC - 범위 : 21년도 이후 iqr범위는 10~40, 중위값은 약25, 최대 약 85, 
-
-# COMMAND ----------
-
-gtkwd_dataM_median = gtkwd_data.resample('M').median()
-gtkwd_dataM_median.tail()
-
-# COMMAND ----------
-
-plt.figure(figsize=(30,10))
-
-plt.subplot(2, 2, 1)   
-plt.title('<weekly_raw>', fontsize=22)
-plt.hist(gtkwd_data)
-
-plt.subplot(2, 2, 2)
-plt.title('<monthly_median>', fontsize=22)
-plt.hist(gtkwd_dataM_median)
-
-plt.show()
-
-# COMMAND ----------
-
-plt.figure(figsize=(30,10))
-
-plt.subplot(2, 2, 1)   
-plt.title('<weekly_raw>', fontsize=22)
-plt.plot(gtkwd_data)
-
-plt.subplot(2, 2, 2)
-plt.title('<monthly_median>', fontsize=22)
-plt.plot(gtkwd_dataM_median)
-
-plt.show()
-
-# COMMAND ----------
-
-plt.figure(figsize=(30,10))
-
-plt.subplot(2, 2, 1)   
-plt.title('<weekly_raw>', fontsize=22)
-plt.boxplot(gtkwd_data['2021':])
-
-plt.subplot(2, 2, 2)
-plt.title('<monthly_median>', fontsize=22)
-plt.boxplot(gtkwd_dataM_median['2021':])
-
-plt.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 데이터 통합
-
-# COMMAND ----------
-
-marketdataM = data['2018':'2022-01'].resample('M').median()
-marketdataM.tail()
-
-# COMMAND ----------
-
-# 월간 통합
-total = pd.merge(marketdataM, gtkwd_dataM, left_index=True, right_index=True, how='left')
-total.tail()
-
-# COMMAND ----------
-
-# 주간 통합
-marketdataW = data['2018':'2022-01'].resample('W').median()
-totalW = pd.merge(marketdataW, gtkwd_data, left_index=True, right_index=True, how='left')
-totalW.tail()
-
-# COMMAND ----------
-
-# 주간 통합
-total = pd.merge(marketdata, gtkwd_data, left_index=True, right_index=True, how='left')
-total.tail()
-
-# COMMAND ----------
-
-# 정규화
-from sklearn.preprocessing import MinMaxScaler
-minmax_scaler = MinMaxScaler()
-total_scaled = total.copy()
-total_scaled.iloc[:,:] = minmax_scaler.fit_transform(total_scaled)
-total_scaled.describe()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 미니 상관분석
-# MAGIC - 확인결과 스케일링 정규화랑 차이 없음, raw데이터로 보면됨, 월간과 주간 차이 없음
-
-# COMMAND ----------
-
-# [함수] 카테고리별 히트맵 생성기
-import plotly.figure_factory as ff
-
-# 카테고리 분류기
-def category_classifier(data, category):
-    col_list = []
-    for i in range(len(data.columns)):
-        if data.columns[i].split('_')[0] == category:
-            col_list.append(data.columns[i])
-        else :
-            pass
-    return col_list
-
-def heatmapC(data, category):
-    # 카테고리 분류기 호출
-    col_list = category_classifier(data, category)
-    col_list.append('nft_gt')
-    
-    # 삼각행렬 데이터 및 mask 생성
-    corr = round(data[col_list].corr(), 2)
-    mask = np.triu(np.ones_like(corr, dtype=bool))
-    # 상부 삼각행렬 생성(np.tilu()은 하부), np.ones_like(bool)와 함께 사용하여 값이 있는 하부삼각행렬은 1(true)를 반환한다.
-    # 하부를 만들면 우측기준으로 생성되기 때문에 왼쪽기준으로 생성되는 상부를 반전한다.
-    df_mask = corr.mask(mask)
-
-    
-    fig = ff.create_annotated_heatmap(z=df_mask.to_numpy(), 
-        x=df_mask.columns.tolist(),
-        y=df_mask.columns.tolist(),
-        colorscale='Blues',
-        hoverinfo="none", #Shows hoverinfo for null values
-        showscale=True,
-        xgap=3, ygap=3, # margin
-        zmin = 0, zmax=1     
-        )
-    
-    fig.update_xaxes(side="bottom") # x축타이틀을 하단으로 이동
-
-    fig.update_layout(
-        title_text='<b>Correlation Matrix (ALL 카테고리 피처간 상관관계)<b>', 
-        title_x=0.5, 
-#         width=1000, height=1000,
-        xaxis_showgrid=False,
-        yaxis_showgrid=False,
-        xaxis_zeroline=False,
-        yaxis_zeroline=False,
-        yaxis_autorange='reversed', # 하단 삼각형으로 변경
-        template='plotly_white'
-    )
-
-    # NaN 값은 출력안되도록 숨기기
-    for i in range(len(fig.layout.annotations)):
-        if fig.layout.annotations[i].text == 'nan':
-            fig.layout.annotations[i].text = ""
-
-    fig.show()
-    
-
-# COMMAND ----------
-
-# [함수] 피처별 히트맵 생성기
-import plotly.figure_factory as ff
-
-def heatmapF(data, feature):
-    # 피처 분류기 호출
-    col_list = feature_classifier(data, feature)
-    col_list.append('nft_gt')
-     # all 카테고리 제외
-#     new_col_list = []
-#     for col in col_list:
-#         if col.split('_')[0] != 'all':
-#             new_col_list.append(col)
-#         else: pass
-    
-    corr = round(data[col_list].corr(), 2)
-        
-    # 삼각행렬 데이터 및 mask 생성
-    mask = np.triu(np.ones_like(corr, dtype=bool))
-    # 상부 삼각행렬 생성(np.tilu()은 하부), np.ones_like(bool)와 함께 사용하여 값이 있는 하부삼각행렬은 1(true)를 반환한다.
-    # 하부를 만들면 우측기준으로 생성되기 때문에 왼쪽기준으로 생성되는 상부를 반전한다.
-   
-    df_mask = corr.mask(mask)
-
-    
-    fig = ff.create_annotated_heatmap(z=df_mask.to_numpy(), 
-        x=df_mask.columns.tolist(),
-        y=df_mask.columns.tolist(),
-        colorscale='Blues',
-        hoverinfo="none", #Shows hoverinfo for null values
-        showscale=True,
-        xgap=3, ygap=3, # margin
-        zmin = 0, zmax=1     
-        )
-    
-    fig.update_xaxes(side="bottom") # x축타이틀을 하단으로 이동
-
-    fig.update_layout(
-        title_text='<b>Correlation Matrix ("average USD"피처, 카테고리간 상관관계)<b>', 
-        title_x=0.5, 
-#         width=1000, height=1000,
-        xaxis_showgrid=False,
-        yaxis_showgrid=False,
-        xaxis_zeroline=False,
-        yaxis_zeroline=False,
-        yaxis_autorange='reversed', # 하단 삼각형으로 변경
-        template='plotly_white'
-    )
-
-    # NaN 값은 출력안되도록 숨기기
-    for i in range(len(fig.layout.annotations)):
-        if fig.layout.annotations[i].text == 'nan':
-            fig.layout.annotations[i].text = ""
-
-    fig.show()
-    
-
-# COMMAND ----------
-
-# nft_gt와 대체로 상관관계가 높음, utility제외(collectible이 가장 높음)
-heatmapC(total, 'all')
-
-# COMMAND ----------
-
-# 대체로 상관관계가 높다. 상대적으로 avgusd가 낮지만 그래도 높은편이니 인과검정 할만 한듯(아무리 생각해도 nft가격은...커뮤니티영향이 클 것 같은데.. nft tweet 데이터가 없어서 아쉽다.)
-heatmapC(total['2021':], 'all')
-
-# COMMAND ----------
-
-# nft_gt와 대체로 상관관계가 높음, utility제외(collectible이 가장 높음) 하지만, 2018~2020까지 모두 1이라서 판단하기 어려움
-heatmapF(total, 'average_usd')
-
-# COMMAND ----------
-
-# 본격적으로 검색량이 많아진 21년도부터 차이가 확연하다.
-# all기준 검색량과 상관관계가 높은편, metaverse, collectible, art가 가장 높고, defi는 낮은 수준. collectible, game과 인과검정해보자
-heatmapF(total['2021':], 'average_usd')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 시차상관분석
-
-# COMMAND ----------
-
-nftgt_list = ['nft_gt', 'collectible_average_usd', 'game_average_usd', 'all_average_usd', 'all_unique_buyers']
-
-# COMMAND ----------
-
-# 월 중앙값, 2021년도 이후
-print(f"<<<X기준 Y의 변동폭 및 시차상관계수 테이블>>>")
-result_df = TLCC_comparison_table(total['2021':], 'nft_gt', nftgt_list, -6, 6)
-result_df
-
-# COMMAND ----------
-
-## 데이터프레임 스타일(색 구간 설정 해야함, 볼 때 유의)
-pd.set_option('display.precision', 2) # 소수점 글로벌 설정
-result_df.style.background_gradient(cmap='Blues').set_caption(f"<b><<<'X(0)기준 Y의 변동폭 및 시차상관계수'>>><b>")
-
-# COMMAND ----------
-
-# 주간 기준, 2021년도 이후
-print(f"<<<X기준 Y의 변동폭 및 시차상관계수 테이블>>>")
-result_df = TLCC_comparison_table(totalW['2021':], 'nft_gt', nftgt_list, -12, 12)
-result_df
-
-# COMMAND ----------
-
-## 데이터프레임 스타일(색 구간 설정 해야함, 볼 때 유의)
-pd.set_option('display.precision', 2) # 소수점 글로벌 설정
-result_df.style.background_gradient(cmap='Blues').set_caption(f"<b><<<'X(0)기준 Y의 변동폭 및 시차상관계수'>>><b>")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ##### nft&cau&gau 시차상관분석(2021년 이후 월중앙값 & 주간)
-# MAGIC - nftgt & nftgt : +- 3개월 정도 상관성이 있음
-# MAGIC - nftgt & cau : -2개월부터 상관성이 높고, +는 매우 높음, nftgt -> cau관계로 추정
-# MAGIC - nftgt & gau : 1부터 상관성이 높음으나 cau에 상대적으로 낮음 nftgt -> cau관계로 추정
-# MAGIC - nftgt & au : 0부터 높음, nftgt -> au관계로 추정
-# MAGIC - nftgt & ub : -2 ~ 0높았은데, 1~2에 잠시 하락했다가 급등, ub->nftgt 관계인가? 뭐지??
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### 공적분 검정
-# MAGIC - 앵글&그레인저, 주간데이터
-# MAGIC - nftgt 와 시차상관성이 높은 cau와 aub만 대표로 보자
-
-# COMMAND ----------
-
-# 공적분 관계 시각화
-X = totalW['nft_gt']['2021':]
-Y = totalW['collectible_average_usd']['2021':]
-
-# 디폴트 : raw데이터(로그변환/스케일링등 정규화하면 안됨, 특징 사라짐), augmented engle&granger(default), maxlag(none), trend='c'
-import statsmodels.tsa.stattools as ts
-score, pvalue, _ = ts.coint(X,Y)
-print('Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('ADF score: ' + str( np.round(score, 4) ))
-print('Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
-print('='*50)
-
-print('추세 상수&기울기')
-score, pvalue, _ = ts.coint(X,Y, trend='ct')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
-print('='*50)
-
-print('추세 상수&기울기(2차)')
-score, pvalue, _ = ts.coint(X,Y, trend='ctt')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
-print('='*50)
-
-print('추세 없음')
-score, pvalue, _ = ts.coint(X,Y, trend='nc')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
-
-(Y/X).plot(figsize=(30,10))
-plt.axhline((Y/X).mean(), color='red', linestyle='--')
-plt.xlabel('Time')
-plt.title('collectible_avgusd / nft_gt Ratio')
-plt.legend(['collectible_avgusd / nft_gt Ratio', 'Mean'])
-plt.show()
-
-# COMMAND ----------
-
-# 공적분 관계 시각화
-X = totalW['nft_gt']['2021':]
-Y = totalW['all_unique_buyers']['2021':]
-
-# 디폴트 : raw데이터(로그변환/스케일링등 정규화하면 안됨, 특징 사라짐), augmented engle&granger(default), maxlag(none), trend='c'
-import statsmodels.tsa.stattools as ts
-score, pvalue, _ = ts.coint(X,Y)
-print('Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('ADF score: ' + str( np.round(score, 4) ))
-print('Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
-print('='*50)
-
-print('추세 상수&기울기')
-score, pvalue, _ = ts.coint(X,Y, trend='ct')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
-print('='*50)
-
-print('추세 상수&기울기(2차)')
-score, pvalue, _ = ts.coint(X,Y, trend='ctt')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
-print('='*50)
-
-print('추세 없음')
-score, pvalue, _ = ts.coint(X,Y, trend='nc')
-print('Rawdata Correlation: ' + str( np.round(X.corr(Y), 4) ))
-print('Rawdata ADF score: ' + str( np.round(score, 4) ))
-print('Rawdata Cointegration test p-value: ' + str( np.round(pvalue, 4) ))
-
-(Y/X).plot(figsize=(30,10))
-plt.axhline((Y/X).mean(), color='red', linestyle='--')
-plt.xlabel('Time')
-plt.title('all_buyers / nft_gt Ratio')
-plt.legend(['all_buyers / nft_gt', 'Mean'])
-plt.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ##### (단변량) 앵글&그레인저 2단계 결과(주간)
-# MAGIC - nftgt & cau : ctt기준 pval  0.3798로 0.05를 초과하여 귀무가설을 채택하여 **공적분관계 없음**
-# MAGIC - nftgt & ub : ctt기준 pval 0.4232 로 0.05를 초과하여 귀무가설을 채택하여 **공적분관계 없음** 
 
 # COMMAND ----------
 

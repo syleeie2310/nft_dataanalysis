@@ -790,8 +790,8 @@ def visualDF(dataframe):
 #     pd.set_option('display.precision', 2) # 소수점 글로벌 설정
     pd.set_option('display.float_format',  '{:.2f}'.format)
     dataframe = dataframe.style.bar(subset=['X2표준편차','X2상대표준편차'])\
-    .background_gradient(subset=[*result_df.columns[4:]], cmap='Blues', vmin = 0.5, vmax = 0.9)\
-    .set_caption(f"<b><<< X1변수({result_df['X1변수'][0]})기준 X2의 시차상관계수'>>><b>")\
+    .background_gradient(subset=[*dataframe.columns[4:]], cmap='Blues', vmin = 0.5, vmax = 0.9)\
+    .set_caption(f"<b><<< X1변수({dataframe['X1변수'][0]})기준 X2의 시차상관계수'>>><b>")\
     .format(thousands=',')\
     .set_properties(
         **{'border': '1px black solid !important'})
