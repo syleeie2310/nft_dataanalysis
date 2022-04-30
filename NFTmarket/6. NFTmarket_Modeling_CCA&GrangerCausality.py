@@ -1278,6 +1278,7 @@ all_flist_result
 
 # COMMAND ----------
 
+# 주간 18년도 이후 데이터 기준
 visualDF(all_flist_result)
 
 # COMMAND ----------
@@ -1289,6 +1290,7 @@ all_flist_result
 
 # COMMAND ----------
 
+# 주간 21년도 이후 데이터 기준
 visualDF(all_flist_result)
 
 # COMMAND ----------
@@ -1315,6 +1317,7 @@ avgusd_clist_result
 
 # COMMAND ----------
 
+# 주간 18년도 이후 데이터 기준
 visualDF(avgusd_clist_result)
 
 # COMMAND ----------
@@ -1775,7 +1778,7 @@ from statsmodels.tsa.stattools import grangercausalitytests
 # COMMAND ----------
 
 # 총평균가->nft_gt    3,4,5,7~12 귀무가설 기각  f통계량(3기준= 3.69 , 7기준 = 4.79 , 12기준= 14.18 )
-grangercausalitytests(totalW_diff[['nft_gt', 'all_average_usd']]['2019':], maxlag=12)
+grangercausalitytests(totalW_diff[['nft_gt', 'all_average_usd']]['2018':], maxlag=12)
 
 # COMMAND ----------
 
